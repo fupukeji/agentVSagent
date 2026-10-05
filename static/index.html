@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>立回斗士 · AI 竞技场</title>
+<style>
+  :root {
+    --bg:#0a0c11; --panel:#12161f; --panel2:#171c28; --line:#232a38;
+    --txt:#e8ecf3; --sub:#8b95a7; --acc:#ff7a36; --acc2:#5ad7e6;
+    --gold:#ffd166; --green:#69db7c; --red:#ff6b6b; --purple:#b197fc;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--txt); min-height:100vh;
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background-image:radial-gradient(1200px 500px at 70% -10%, rgba(255,122,54,.08), transparent),
+                     radial-gradient(900px 400px at 10% 110%, rgba(90,215,230,.06), transparent);
+  }
+  a { color:var(--acc2); text-decoration:none; }
+  .wrap { max-width:1180px; margin:0 auto; padding:0 20px; }
+
+  /* ---- 顶部 ---- */
+  header { border-bottom:1px solid var(--line); background:rgba(10,12,17,.85);
+           backdrop-filter:blur(8px); position:sticky; top:0; z-index:10; }
+  .nav { display:flex; align-items:center; gap:14px; height:60px; }
+  .logo { font-size:20px; font-weight:800; letter-spacing:.5px; }
+  .logo b { color:var(--acc); }
+  .tagline { color:var(--sub); font-size:13px; }
+  .spacer { flex:1; }
+  .chips { display:flex; gap:8px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); border-radius:999px;
+          padding:4px 12px; font-size:12px; color:var(--sub); }
+  .chip b { color:var(--txt); }
+
+  /* ---- Hero ---- */
+  .hero { padding:34px 0 22px; }
+  .hero h1 { font-size:30px; font-weight:800;
+    background:linear-gradient(90deg,#ffb16b,var(--acc),var(--acc2));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p { color:var(--sub); margin-top:8px; font-size:14px; }
+  .loop { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; align-items:center; }
+  .loop .step { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:8px 14px; font-size:13px; }
+  .loop .step b { color:var(--acc); margin-right:6px; }
+  .loop .arrow { color:var(--sub); }
+
+  section { margin:26px 0; }
+  h2 { font-size:18px; font-weight:700; margin-bottom:14px; display:flex;
+       align-items:center; gap:8px; }
+  h2 .hint { font-size:12px; color:var(--sub); font-weight:400; margin-left:6px; }
+
+  /* ---- 排行榜 ---- */
+  table { width:100%; border-collapse:collapse; background:var(--panel);
+    border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  th, td { padding:11px 14px; text-align:left; font-size:14px; }
+  th { color:var(--sub); font-weight:600; font-size:12px; letter-spacing:.5px;
+       background:var(--panel2); border-bottom:1px solid var(--line); }
+  tr td { border-bottom:1px solid var(--line); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(255,255,255,.02); }
+  .medal { font-size:16px; }
+  .pname { font-weight:700; }
+  .psub { color:var(--sub); font-size:12px; }
+  .kind { font-size:11px; border-radius:6px; padding:2px 8px; border:1px solid var(--line);
+    color:var(--sub); }
+  .elo { font-weight:800; color:var(--gold); }
+  .total { font-weight:800; color:var(--acc); }
+  .loading { color:var(--sub); padding:26px; text-align:center; font-size:13px; }
+  .spin { display:inline-block; animation:rot 1s linear infinite; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+
+  /* ---- 选手卡片 ---- */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+          padding:16px; position:relative; overflow:hidden; }
+  .card .top { display:flex; align-items:center; gap:12px; }
+  .card .ava { font-size:34px; }
+  .card .nm { font-weight:800; font-size:16px; }
+  .card .nt { color:var(--sub); font-size:12px; margin-top:2px; }
+  .card .pts { margin-left:auto; text-align:right; }
+  .card .pts .n { font-size:24px; font-weight:800; color:var(--acc); }
+  .card .pts .l { font-size:11px; color:var(--sub); }
+  .bars { margin-top:14px; display:grid; gap:7px; }
+  .bar { display:grid; grid-template-columns:64px 1fr 58px; gap:8px; align-items:center;
+         font-size:12px; color:var(--sub); }
+  .bar .tr { height:7px; background:var(--panel2); border-radius:4px; overflow:hidden; }
+  .bar .fl { height:100%; border-radius:4px; }
+  .bar .v { text-align:right; color:var(--txt); }
+  .noscore { color:var(--sub); font-size:13px; margin-top:14px; }
+
+  /* ---- 双栏 ---- */
+  .cols { display:grid; grid-template-columns:1.15fr .85fr; gap:14px; }
+  @media (max-width:900px){ .cols { grid-template-columns:1fr; } }
+
+  /* ---- 对局列表 ---- */
+  .matches { background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .match { padding:12px 16px; border-bottom:1px solid var(--line); display:flex;
+           align-items:center; gap:10px; font-size:14px; }
+  .match:last-child { border-bottom:none; }
+  .vs { color:var(--sub); font-size:12px; }
+  .win { color:var(--green); font-weight:800; }
+  .lose { color:var(--sub); }
+  .meta { color:var(--sub); font-size:12px; margin-left:auto; display:flex;
+          gap:10px; align-items:center; }
+  .btn-mini { background:var(--panel2); color:var(--acc2); border:1px solid var(--line);
+    border-radius:7px; padding:3px 9px; font-size:11px; cursor:pointer; }
+  .btn-mini:hover { border-color:var(--acc2); }
+
+  /* ---- 演控台 ---- */
+  .panelbox { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+              padding:18px; display:grid; gap:18px; }
+  .pb h3 { font-size:14px; margin-bottom:10px; color:var(--txt); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  select, input[type=number], input[type=text] {
+    background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    border-radius:9px; padding:8px 10px; font-size:13px; outline:none; }
+  select:focus, input:focus { border-color:var(--acc); }
+  button { background:linear-gradient(90deg,var(--acc),#ff9a5b); color:#14100c;
+    border:none; border-radius:9px; padding:9px 18px; font-size:13px; font-weight:700;
+    cursor:pointer; transition:filter .15s; }
+  button:hover { filter:brightness(1.1); }
+  button.alt { background:var(--panel2); color:var(--acc2); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .status { font-size:12px; color:var(--sub); min-height:16px; }
+  .status.ok { color:var(--green); }
+  .status.err { color:var(--red); }
+  .upload-box { border:1.5px dashed var(--line); border-radius:12px; padding:16px;
+    text-align:center; color:var(--sub); font-size:13px; }
+  .upload-box.has { border-color:var(--acc2); color:var(--txt); }
+
+  footer { border-top:1px solid var(--line); margin-top:40px; padding:22px 0 34px;
+    color:var(--sub); font-size:12px; line-height:1.9; }
+  footer b { color:var(--txt); }
+</style>
+</head>
+<body>
+<header><div class="wrap nav">
+  <div class="logo">🥊 立回斗士<b>·AI 竞技场</b></div>
+  <div class="tagline">上传你的智能体 → 隐藏池评分 → 上榜</div>
+  <div class="spacer"></div>
+  <div class="chips">
+    <div class="chip">选手 <b id="st-agents">–</b></div>
+    <div class="chip">对局 <b id="st-matches">–</b></div>
+    <div class="chip">回放 <b id="st-replays">–</b></div>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>让AI替你上场打排位</h1>
+    <p>1D 极简格斗 · 立回（距离管控）× 打投择（猜拳环）· 无头确定性执行 · 回放防篡改</p>
+    <div class="loop">
+      <div class="step"><b>①</b>上传 Agent（.py / PPO / HTTP）</div><span class="arrow">→</span>
+      <div class="step"><b>②</b>试炼场热身</div><span class="arrow">→</span>
+      <div class="step"><b>③</b>隐藏池三维评分</div><span class="arrow">→</span>
+      <div class="step"><b>④</b>看回放找弱点</div><span class="arrow">→</span>
+      <div class="step"><b>⑤</b>Elo 上榜</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>🏆 对战排行榜 <span class="hint" id="lb-updated"></span></h2>
+    <div id="leaderboard"><div class="loading"><span class="spin">⏳</span> 首次启动约 1 分钟：开幕锦标赛进行中，稍后自动刷新……</div></div>
+  </section>
+
+  <section>
+    <h2>🧑‍🤝‍🧑 选手风采 <span class="hint">胜率 65 + 速度 20 + 稳定性 15 = 100</span></h2>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="cols">
+    <div>
+      <h2>⚔️ 最近对局</h2>
+      <div class="matches" id="matches"><div class="loading">暂无对局</div></div>
+    </div>
+    <div>
+      <h2>🎛 演控台</h2>
+      <div class="panelbox">
+        <div class="pb">
+          <h3>约战一局（确定性种子，可仲裁重放）</h3>
+          <div class="row">
+            <select id="m-a"></select>
+            <span class="vs">vs</span>
+            <select id="m-b"></select>
+            <input type="number" id="m-seed" value="42" style="width:74px" title="种子">
+            <button id="btn-match">开赛</button>
+          </div>
+        </div>
+        <div class="pb">
+          <h3>隐藏池排位评分（8 风格化对手 × 3 局）</h3>
+          <div class="row">
+            <select id="sc-agent"></select>
+            <button id="btn-score" class="alt">评分</button>
+          </div>
+        </div>
+        <div class="pb">
+          <h3>重跑锦标赛（全体循环赛）</h3>
+          <div class="row"><button id="btn-tour" class="alt">开赛（每对 6 局）</button></div>
+        </div>
+        <div class="pb">
+          <h3>上传你的智能体</h3>
+          <div class="row">
+            <div class="upload-box" id="drop" style="flex:1">选择或拖入 .py 策略文件（含 class Agent）</div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <input type="text" id="up-name" placeholder="选手名（留空取文件名）" style="flex:1">
+            <button id="btn-upload">注册参赛</button>
+            <input type="file" id="up-file" accept=".py" hidden>
+          </div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer><div class="wrap">
+  <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
+  本地 Docker 演示 · 对局/评分均在服务端可信执行 · 回放含逐帧 HP 轨迹防篡改校验 ·
+  生产环境隐藏池参数不下发（演示镜像内置） · file: 策略为信任运行（沙箱属平台工程）
+</div></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => (n ?? '–');
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+function setStatus(msg, cls='') { const s = $('status'); s.textContent = msg; s.className = 'status ' + cls; }
+async function busy(btn, fn) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = old + '…';
+  try { return await fn(); } finally { btn.disabled = false; btn.textContent = old; }
+}
+
+/* ---------- 渲染 ---------- */
+function bar(label, val, max, color) {
+  const pct = Math.max(0, Math.min(100, val / max * 100));
+  return `<div class="bar"><span>${label}</span><div class="tr">
+    <div class="fl" style="width:${pct}%;background:${color}"></div></div>
+    <span class="v">${val}</span></div>`;
+}
+
+function renderLeaderboard(data) {
+  if (!data.ready) return;  // 保持 loading 占位
+  $('lb-updated').textContent = `更新于 ${data.updated} · 每对 ${data.games_per_pair} 局`;
+  const medals = ['🥇','🥈','🥉'];
+  $('leaderboard').innerHTML = `<table><thead><tr>
+    <th style="width:44px">#</th><th>选手</th><th>类型</th><th>Elo</th>
+    <th>胜-负-平</th><th>场均tick</th><th>综合分</th></tr></thead><tbody>` +
+    data.board.map((row, i) => {
+      const nm = (data.names && data.names[row.spec]) || {name: row.spec, avatar: '❓'};
+      const kind = row.spec.startsWith('file:') ? 'file 脚本' :
+                   row.spec.startsWith('hidden:') ? 'hidden' :
+                   row.spec === 'ppo' ? 'PPO' : row.spec === 'random' ? 'random' : 'script';
+      return `<tr>
+        <td class="medal">${medals[i] || i + 1}</td>
+        <td><span class="pname">${nm.avatar} ${nm.name}</span></td>
+        <td><span class="kind">${kind}</span></td>
+        <td class="elo">${row.elo.toFixed(1)}</td>
+        <td>${row.w}-${row.l}-${row.d}</td>
+        <td>${row.mean_ticks.toFixed(0)}</td>
+        <td class="total" data-spec="${row.spec}">–</td></tr>`;
+    }).join('') + '</tbody></table>';
+  fillTotals();
+}
+
+async function fillTotals() {
+  const agents = await api('/api/agents');
+  agents.forEach(a => {
+    const td = document.querySelector(`td[data-spec="${CSS.escape(a.spec)}"]`);
+    if (td && a.score) td.textContent = a.score.scores.total;
+  });
+}
+
+function renderCards(agents) {
+  $('cards').innerHTML = agents.map(a => {
+    const s = a.score && a.score.scores;
+    const body = s ? `<div class="bars">
+        ${bar('胜率', s.win_pts, 65, 'linear-gradient(90deg,#ffb16b,#ff7a36)')}
+        ${bar('速度', s.speed_pts, 20, 'linear-gradient(90deg,#7ce8f5,#5ad7e6)')}
+        ${bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')}
+      </div>` : `<div class="noscore"><span class="spin">⏳</span> 隐藏池评分排队中…</div>`;
+    return `<div class="card">
+      <div class="top"><div class="ava">${a.avatar}</div>
+        <div><div class="nm">${a.name}</div><div class="nt">${a.note || ''}</div></div>
+        <div class="pts"><div class="n">${s ? s.total : '–'}</div><div class="l">综合分</div></div>
+      </div>${body}</div>`;
+  }).join('');
+}
+
+function renderMatches(ms) {
+  $('matches').innerHTML = ms.length ? ms.map(m => {
+    const o = m.outcome, w = o.winner;
+    const an = `<span class="${w === 0 ? 'win' : w === 1 ? 'lose' : ''}">${m.a.avatar} ${m.a.name}</span>`;
+    const bn = `<span class="${w === 1 ? 'win' : w === 0 ? 'lose' : ''}">${m.b.avatar} ${m.b.name}</span>`;
+    const res = w === null ? '⚖️平' : o.result.startsWith('timeout') ? '⏱判' : 'K.O.';
+    return `<div class="match">${an}<span class="vs">vs</span>${bn}
+      <span class="kind">${res}</span>
+      <div class="meta"><span>${o.ticks}帧 · seed ${m.seed}</span>
+        ${m.replay ? `<a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">回放</a>
+        <button class="btn-mini" onclick="copyCmd('${m.replay}')">复放命令</button>` : ''}
+      </div></div>`;
+  }).join('') : '<div class="loading">暂无对局——去演控台约一场</div>';
+}
+
+function copyCmd(replay) {
+  const cmd = `python play.py --replay data/replays/${replay}`;
+  navigator.clipboard?.writeText(cmd);
+  setStatus(`已复制：${cmd}`, 'ok');
+}
+
+/* ---------- 加载与轮询 ---------- */
+function fillSelects(agents) {
+  for (const [sel, def] of [[$('m-a'), 0], [$('m-b'), 1], [$('sc-agent'), 0]]) {
+    sel.innerHTML = agents.map(a =>
+      `<option value="${a.id}">${a.avatar} ${a.name}</option>`).join('');
+    if (agents[def]) sel.value = agents[def].id;
+  }
+}
+
+async function loadAll() {
+  try {
+    const [agents, lb, matches, stats] = await Promise.all([
+      api('/api/agents'), api('/api/leaderboard'), api('/api/matches'), api('/api/stats')]);
+    fillSelects(agents); renderCards(agents); renderMatches(matches);
+    renderLeaderboard(lb);
+    $('st-agents').textContent = stats.agents;
+    $('st-matches').textContent = stats.matches;
+    $('st-replays').textContent = stats.replays;
+  } catch (e) { setStatus('加载失败: ' + e.message, 'err'); }
+}
+
+/* ---------- 动作 ---------- */
+$('btn-match').onclick = () => busy($('btn-match'), async () => {
+  try {
+    const m = await api('/api/match', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({a: $('m-a').value, b: $('m-b').value, seed: +$('m-seed').value || 0})});
+    const w = m.outcome.winner;
+    setStatus(`完赛：${w === 0 ? m.a.name : w === 1 ? m.b.name : '平局'} 获胜`
+      + `（${m.outcome.result}，${m.outcome.ticks}帧）`, 'ok');
+    loadAll();
+  } catch (e) { setStatus(e.message, 'err'); }
+});
+
+$('btn-score').onclick = () => busy($('btn-score'), async () => {
+  try {
+    const r = await api(`/api/score/${$('sc-agent').value}`, {method: 'POST'});
+    setStatus(`${r.agent_name} 隐藏池评分完成：总分 ${r.scores.total}`, 'ok');
+    loadAll();
+  } catch (e) { setStatus(e.message, 'err'); }
+});
+
+$('btn-tour').onclick = () => busy($('btn-tour'), async () => {
+  try {
+    const r = await api('/api/tournament', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: '{}'});
+    setStatus(`锦标赛完成（每对 ${r.games_per_pair} 局）`, 'ok');
+    loadAll();
+  } catch (e) { setStatus(e.message, 'err'); }
+});
+
+/* 上传 */
+const drop = $('drop');
+drop.onclick = () => $('up-file').click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('has'); };
+drop.ondragleave = () => drop.classList.remove('has');
+drop.ondrop = e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); };
+$('up-file').onchange = e => handleFile(e.target.files[0]);
+function handleFile(f) {
+  if (!f) return;
+  if (!f.name.endsWith('.py')) { setStatus('只接受 .py 文件', 'err'); return; }
+  drop.textContent = `📄 ${f.name}（${f.size} 字节）`;
+  drop.classList.add('has');
+  drop._file = f;
+}
+$('btn-upload').onclick = () => busy($('btn-upload'), async () => {
+  const f = drop._file;
+  if (!f) { setStatus('请先选择策略文件', 'err'); return; }
+  const fd = new FormData();
+  fd.append('file', f);
+  if ($('up-name').value.trim()) fd.append('name', $('up-name').value.trim());
+  try {
+    const r = await api('/api/agents/upload', {method: 'POST', body: fd});
+    const o = r.smoke_outcome;
+    setStatus(`注册成功：${r.entry.avatar} ${r.entry.name}`
+      + `（冒烟${o.winner === 0 ? '胜' : '负'}随机君）—— 可去演控台评分/约战`, 'ok');
+    drop.textContent = '选择或拖入 .py 策略文件（含 class Agent）';
+    drop.classList.remove('has'); drop._file = null; $('up-name').value = '';
+    loadAll();
+  } catch (e) { setStatus(e.message, 'err'); }
+});
+
+loadAll();
+setInterval(loadAll, 8000);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+.venv
+.git
+data
+replays
+__pycache__
+*.pyc
+.DS_Store
+PLAN.md
+README.md

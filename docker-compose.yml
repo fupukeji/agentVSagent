@@ -1,0 +1,8 @@
+services:
+  arena:
+    build: .
+    container_name: foosies-arena
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data   # 选手/榜单/回放落宿主机，可直接用 play.py 复放
