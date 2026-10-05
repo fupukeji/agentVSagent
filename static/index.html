@@ -348,21 +348,44 @@
   </div>
 
   <section>
-    <h2>🧭 新手之路（脚本流 · 推荐）</h2>
+    <h2>🤖 方式一 · AI IDE 代打（推荐）<span class="hint">豆包 / workbuddy / Cursor / Claude 等均可</span></h2>
+    <div class="info"><div class="d">
+      把任务书喂给你的 AI 助手，它自己写策略、自己测试、自己提交——你只看榜：
+      <div class="codewrap" style="margin-top:10px"><button class="btn-mini cp" data-copy="cd /path/to/fighting-rl && python join.py init&#10;&#10;# 然后把这句话发给你的 AI IDE：&#10;# 请阅读 AGENT_INSTRUCTIONS.md 并完成参赛任务，严格按其中的工作循环自主迭代，直到达到 L3 或无法改进。">复制</button>
+<pre><span class="c"># 1) 终端里初始化（自动装依赖 + 生成参赛文件）</span>
+cd /path/to/fighting-rl && python join.py init
+
+<span class="c"># 2) 把这句话发给你的 AI IDE（豆包 / workbuddy / Cursor…）：</span>
+请阅读 AGENT_INSTRUCTIONS.md 并完成参赛任务，
+严格按其中的工作循环自主迭代，直到达到 L3 或无法改进。</pre></div>
+      AI 会自主循环：编辑 <code>my_agent.py</code> → <code>join.py test</code>（三关测试）
+      → <code>join.py score</code>（本地预估分）→ <code>join.py submit</code>（上榜）。
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="dl-btn" href="/agent_instructions.md" download>⬇️ 下载任务书 AGENT_INSTRUCTIONS.md</a>
+        <a class="dl-btn" href="/my_agent_template.py" download style="background:var(--panel2);color:var(--acc2);border:1px solid var(--line)">⬇️ 参赛模板 my_agent.py</a>
+      </div></div></div>
+    <div class="callout"><b>CLI 一览</b>（join.py，全部本地可信执行，失败时送 AI 自己排错）：<br>
+      <code>join.py init</code> 环境自检+生成参赛文件 ·
+      <code>join.py test</code> 三关测试（冒烟/random≥8成/标准Bot） ·
+      <code>join.py score</code> 隐藏池预估分 ·
+      <code>join.py submit --name 名字</code> 提交上榜（自动服务端评分+报排名） ·
+      <code>join.py rank</code> 查榜 · <code>join.py guide</code> 打印 AI 任务卡</div>
+  </section>
+
+  <section>
+    <h2>✍️ 方式二 · 手写脚本流</h2>
     <div class="steps">
-      <div class="step-li"><b>下载官方模板</b>
+      <div class="step-li"><b>下载官方模板</b>（含 21 维观测速查表与「确反」第一课，起步即 10:0 碾压随机君）
         <div class="codewrap" style="margin:8px 0 0">
           <a class="dl-btn" href="/my_agent_template.py" download>⬇️ 下载 my_agent_template.py</a>
         </div></div>
-      <div class="step-li"><b>写下你的立回哲学</b>：打开模板，只需实现
-        <code>act(obs)</code> —— 输入 21 维观测，返回动作 <code>0~5</code>。模板里有完整的观测速查表和 5 个起手式注释。</div>
-      <div class="step-li"><b>上传参赛</b>：回到「竞技场」页上传这个 .py 文件（服务器自动跑冒烟测试），
-        或用命令行：
-        <div class="codewrap"><button class="btn-mini cp" data-copy="curl -F &quot;file=@my_agent_template.py&quot; -F &quot;name=我的名字&quot; http://localhost:8000/api/agents/upload">复制</button>
-<pre>curl -F "file=@my_agent_template.py" -F "name=我的名字" \
-     http://localhost:8000/api/agents/upload</pre></div></div>
-      <div class="step-li"><b>拿分上榜</b>：演控台点「评分」（隐藏池 8 对手 × 3 场），
-        再点「开赛」进锦标赛。输了对局可在「最近对局」里下载回放复盘。</div>
+      <div class="step-li"><b>写下你的立回哲学</b>：只需实现 <code>act(obs)</code> —— 输入 21 维观测，
+        返回动作 <code>0~5</code>。模板里注释了三门进阶课（反投/破防/拉防），逐个打开即变强。</div>
+      <div class="step-li"><b>本地测试与提交</b>：
+        <div class="codewrap"><button class="btn-mini cp" data-copy="python join.py test    # 三关测试（不过关会告诉你原因）&#10;python join.py score   # 隐藏池预估分（与服务器同口径）&#10;python join.py submit --name 我的名字   # 上榜（自动服务端评分）">复制</button>
+<pre>python join.py test                        <span class="c"># 三关测试（不过关会告诉你原因）</span>
+python join.py score                       <span class="c"># 隐藏池预估分（与服务器同口径）</span>
+python join.py submit --name 我的名字       <span class="c"># 上榜（自动服务端评分）</span></pre></div></div>
     </div>
     <div class="callout"><b>榜样</b>：现榜首「反投侠」只有 40 行 if-else——作者看了 PPO 被投技狂克制的直播回放，
       写了「贴身绝不站防、轻击压制投技」的策略，隐藏池 86.9 分登顶。<b>看回放找弱点 &gt; 盲目调参</b>。</div>

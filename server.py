@@ -21,6 +21,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent
@@ -126,6 +127,22 @@ def api_rules():
     raw = dict(load_rules(None).raw)
     raw["sha256"] = rules_digest(raw)
     return raw
+
+
+@app.get("/my_agent_template.py")
+def api_template():
+    """官方参赛模板下载（join.py init 与官网下载同源）。"""
+    return FileResponse(ROOT / "templates" / "agent_template.py",
+                        media_type="text/x-python",
+                        filename="my_agent_template.py")
+
+
+@app.get("/agent_instructions.md")
+def api_instructions():
+    """给 AI IDE 的任务书（豆包/workbuddy/Cursor 粘贴用）。"""
+    return FileResponse(ROOT / "AGENT_INSTRUCTIONS.md",
+                        media_type="text/markdown",
+                        filename="AGENT_INSTRUCTIONS.md")
 
 
 @app.get("/api/matches")

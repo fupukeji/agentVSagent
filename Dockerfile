@@ -11,11 +11,13 @@ RUN (pip install --no-cache-dir --timeout 120 torch \
 COPY requirements-server.txt .
 RUN pip install -r requirements-server.txt
 
-# 游戏内核（无状态纯计算）+ 服务器 + 官网静态页 + 模型
-COPY fighting_env.py hidden_bots.py arena.py replay.py score.py elo.py server.py ./
+# 游戏内核（无状态纯计算）+ 服务器 + 官网静态页 + 模型 + 参赛物料
+COPY fighting_env.py hidden_bots.py arena.py replay.py score.py elo.py server.py join.py ./
 COPY agents ./agents
 COPY rules ./rules
 COPY static ./static
+COPY templates ./templates
+COPY AGENT_INSTRUCTIONS.md .
 COPY fighting_ppo.zip .
 
 EXPOSE 8000
