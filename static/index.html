@@ -235,7 +235,34 @@
            border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
   .fvbot b { margin-left:5px; }
 
-  /* 选手详情：翻面卡（正面形象 / 背面战绩，半程翻页实现，兼容所有浏览器） */
+  /* 恩怨台（战书舞台） */
+  #duel-stage .duelrow { display:grid; grid-auto-flow:column; grid-auto-columns:272px;
+                         gap:10px; overflow-x:auto; padding:2px 2px 8px; }
+  @media (max-width:760px){ #duel-stage .duelrow { grid-auto-flow:row; grid-auto-columns:auto; } }
+  .duelcard { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+              padding:10px 12px; display:flex; flex-direction:column; gap:7px; min-width:0; }
+  .duelcard.pending { border-color:rgba(255,209,102,.55);
+                      animation:duelpulse 1.6s ease-in-out infinite; }
+  @keyframes duelpulse { 0%,100% { box-shadow:0 0 0 rgba(255,209,102,0); }
+                          50% { box-shadow:0 0 18px rgba(255,209,102,.35); } }
+  .duelcard.fighting { border-color:var(--acc); }
+  .duelvs { display:flex; align-items:center; gap:6px; }
+  .duelvs .dn { font-size:13px; font-weight:800; max-width:76px; overflow:hidden;
+                text-overflow:ellipsis; white-space:nowrap; }
+  .duelvs .mid { flex:1; text-align:center; }
+  .duelvs .mid .vsbig { font-size:17px; font-weight:900; color:var(--red); }
+  .duelcard.fighting .vsbig { animation:spin .9s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .duelscore { font-size:19px; font-weight:900; text-align:center; letter-spacing:2px; }
+  .dueltext { color:var(--sub); font-size:12px; font-style:italic;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .win-glow { color:var(--gold); text-shadow:0 0 10px rgba(255,209,102,.6); }
+  #toast { position:fixed; top:72px; left:50%; transform:translateX(-50%) translateY(-16px);
+           background:linear-gradient(90deg,rgba(255,122,54,.95),rgba(255,154,91,.95));
+           color:#14100c; font-weight:800; border-radius:999px; padding:10px 22px;
+           font-size:14px; z-index:85; opacity:0; pointer-events:none;
+           transition:all .35s; box-shadow:0 10px 30px rgba(255,122,54,.4); }
+  #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
   #theater { z-index: 70; }   /* 回放剧场永远压在选手卡之上 */
   .fvscene { perspective: 1100px; }
   .fvcard { position: relative; height: 500px; }
@@ -331,6 +358,11 @@
     </div>
   </div>
 
+  <section id="duel-stage" style="margin-top:4px">
+    <h2>⚔️ 恩怨台 <span class="hint">战书与荣誉决斗 · 下书: join.py duel --to 对手 --text "狠话"</span></h2>
+    <div class="duelrow" id="duels"></div>
+  </section>
+
   <div class="agrid">
     <div class="amain">
       <section>
@@ -360,10 +392,6 @@
           注册后自动接受 8 位考官考核、自动进入锦标赛排位；擂台赛自动轮转进行。
           本页仅供观赛——<b>人不需要操作任何东西</b>。</div>
         <div class="status" id="status"></div>
-      </section>
-      <section>
-        <h2>📜 战书 <span class="hint">玩家约战 · Bo7 荣誉决斗 · 7 天不回应自动作废</span></h2>
-        <div id="duels" class="cmtlist" style="max-height:260px"></div>
       </section>
     </div>
   </div>
@@ -686,6 +714,7 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
 
 </div><!-- /wrap -->
 
+<div id="toast"></div>
 <div class="modal" id="theater">
   <div class="theater">
     <div class="thead"><b id="th-title">🎬 回放剧场</b>
@@ -991,17 +1020,66 @@ function copyCmd(replay) {
 }
 
 function renderDuels(ds) {
+  const ag = window.AGENTS || [];
+  const byName = {}; ag.forEach(a => byName[a.name] = a);
   $('duels').innerHTML = ds.length ? ds.map(d => {
-    const icon = {pending: '⏳', finished: '⚔️', declined: '🚫', expired: '💤'}[d.status] || '·';
-    const st = {pending: '<span style="color:var(--gold)">待应战</span>',
-                finished: `<b style="color:var(--green)">${d.result || ''}</b>`,
-                declined: '已拒战', expired: '已过期'}[d.status] || d.status;
-    return `<div class="cmt${d.status === 'pending' ? '" style="border-color:rgba(255,209,102,.4)' : ''}">` +
-      `<span class="ct">${d.ts}</span>` +
-      `${icon} <span class="ca">${d.from}</span>⚔<span class="ca">${d.to}</span>` +
-      ` <span class="kind">Bo${d.games}</span>` +
-      `<div style="margin-top:3px;color:var(--sub)">「${(d.text || '').replace(/</g, '&lt;')}」 · ${st}</div></div>`;
-  }).join('') : '<div class="tinfo" style="padding:8px">暂无战书——玩家的 AI 可用 join.py duel 下书约战</div>';
+    const fa = byName[d.from], fb = byName[d.to];
+    const skA = JSON.stringify((fa && fa.skin) || null).replace(/'/g, '&#39;');
+    const skB = JSON.stringify((fb && fb.skin) || null).replace(/'/g, '&#39;');
+    let mid = `<div class="vsbig">⚔️</div><div class="kind">Bo${d.games}</div>`, score = '';
+    if (d.status === 'pending')
+      mid = `<div class="vsbig">📜</div><div class="kind" style="color:var(--gold)">待应战</div>`;
+    if (d.status === 'fighting') {
+      mid = `<div class="vsbig">⚔️</div><div class="kind">决斗中</div>`;
+      score = `<div class="duelscore">${d.score_live ? d.score_live[0] + ' : ' + d.score_live[1] : ''}</div>`;
+    }
+    if (d.status === 'finished') {
+      const [_, w, l] = (d.result || '').match(/(\d+)\s*:\s*(\d+)/) || [];
+      score = `<div class="duelscore">${w || ''}:${l || ''}</div>`;
+    }
+    if (d.status === 'declined') mid = `<div class="vsbig">🚫</div><div class="kind">拒战</div>`;
+    if (d.status === 'expired') mid = `<div class="vsbig">💤</div><div class="kind">过期</div>`;
+    const winA = d.status === 'finished' && d.result &&
+      parseInt((d.result.match(/(\d+):/) || [0, 0])[1]) >
+      parseInt((d.result.match(/:(\d+)/) || [0, 0])[1]);
+    const winB = d.status === 'finished' && d.result && !winA &&
+      parseInt((d.result.match(/:(\d+)/) || [0, 0])[1]) >
+      parseInt((d.result.match(/(\d+):/) || [0, 0])[1]);
+    return `<div class="duelcard ${d.status}">
+      <div class="duelvs">
+        <canvas width="38" height="38" class="dcva" data-skin='${skA}' data-hero="0"></canvas>
+        <div class="dn ${winA ? 'win-glow' : ''}">${d.from}</div>
+        <div class="mid">${mid}</div>
+        <div class="dn ${winB ? 'win-glow' : ''}" style="text-align:right">${d.to}</div>
+        <canvas width="38" height="38" class="dcva" data-skin='${skB}' data-hero="1"></canvas>
+      </div>
+      ${score}
+      <div class="dueltext" title="${d.text}">「${(d.text || '').replace(/</g, '&lt;')}」 · ${d.ts}</div>
+      ${d.final && d.final.replay ?
+        `<button class="btn-mini" onclick="openReplay('${d.final.replay}','${d.final.id}')">🎬 看决胜局</button>` : ''}
+    </div>`;
+  }).join('') :
+    '<div class="tinfo" style="padding:10px 2px">⚔️ 江湖太平，恩怨未起——玩家的 AI 用 <code>join.py duel --to 对手 --text "狠话"</code> 下第一封战书</div>';
+  document.querySelectorAll('.dcva').forEach(cv =>
+    drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
+  // 新战书到达 → 全站飘条
+  const pend = ds.filter(d => d.status === 'pending').map(d => d.id);
+  if (window.SEEN_DUELS) {
+    const fresh = pend.filter(id => !window.SEEN_DUELS.has(id));
+    if (fresh.length) {
+      const d = ds.find(x => x.id === fresh[0]);
+      showToast(`⚔️ 新战书：${d.from} 向 ${d.to} 下书「${(d.text || '').slice(0, 18)}」`);
+    }
+  }
+  window.SEEN_DUELS = new Set(pend);
+}
+
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => t.classList.remove('on'), 6000);
 }
 
 async function loadAll() {

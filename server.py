@@ -516,7 +516,9 @@ def _duel_public(d):
     return {"id": d["id"], "ts": d["ts"],
             "from": d["from"]["fighter"], "to": d["to"]["fighter"],
             "text": d.get("text", ""), "games": d["games"],
-            "status": d["status"], "result": d.get("result")}
+            "status": d["status"], "result": d.get("result"),
+            "score_live": d.get("score_live"),
+            "final": d.get("final_match")}
 
 
 @app.get("/api/duels")
@@ -601,15 +603,33 @@ def api_duel_accept(duel_id: str, authorization: str = Header(None)):
     if not (me and opp):
         raise HTTPException(404, "选手已离场")
     with LOCK:
-        aw, bw = _best_of(opp, me, d["games"], tag="战书决斗")   # a=下书方
+        aw = bw = 0                       # a = 下书方
+        d["status"] = "fighting"
+        d["score_live"] = [0, 0]
+        _save_duels(ds)
+        final = None
+        for j in range(d["games"]):      # 逐场入档并直播比分（官网实时可见）
+            a, b = (opp, me) if j % 2 == 0 else (me, opp)
+            rec = run_match(a, b, (int(time.time()) + j) % 100000, tag="战书决斗")
+            if rec["outcome"]["winner"] is not None:
+                if (rec["outcome"]["winner"] == 0) == (j % 2 == 0):
+                    aw += 1
+                else:
+                    bw += 1
+            d["score_live"] = [aw, bw]
+            final = rec
+            _save_duels(ds)
+            print(f"  [战书决斗] 第{j + 1}场 {rec['a']['name']} vs {rec['b']['name']} "
+                  f"→ {rec['outcome']['result']}（{d['from']['fighter']} {aw}:{bw} "
+                  f"{d['to']['fighter']}）", flush=True)
         d["status"] = "finished"
         d["result"] = f"{d['from']['fighter']} {aw}:{bw} {d['to']['fighter']}"
-        d["result_raw"] = [aw, bw]
+        d["final_match"] = {"id": final["id"], "replay": final["replay"]}
         _save_duels(ds)
-    winner = d["from"]["fighter"] if aw > bw else d["to"]["fighter"]
+    winner = d["from"]["fighter"] if aw > bw else (
+        d["to"]["fighter"] if bw > aw else None)
     print(f"[duel] ⚔️ 决斗完成: {d['result']}（胜者 {winner}）", flush=True)
-    return {**_duel_public(d), "winner": winner if aw != bw else "平"
-            if aw == bw else winner}
+    return {**_duel_public(d), "winner": winner or "平"}
 
 
 @app.post("/api/duels/{duel_id}/decline")
