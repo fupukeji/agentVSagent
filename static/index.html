@@ -226,7 +226,14 @@
   @media (max-width:920px){ .agrid { grid-template-columns:1fr; } }
   .wall { display:grid; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); gap:8px; }
   .mini { display:flex; align-items:center; gap:8px; background:var(--panel);
-          border:1px solid var(--line); border-radius:11px; padding:8px; position:relative; }
+          border:1px solid var(--line); border-radius:11px; padding:8px; position:relative;
+          cursor:pointer; transition:border-color .15s; }
+  .mini:hover { border-color:var(--acc); }
+  .pname.clk { cursor:pointer; }
+  .pname.clk:hover { color:var(--acc); }
+  .fvbot { display:inline-block; font-size:11.5px; border:1px solid var(--line);
+           border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
+  .fvbot b { margin-left:5px; }
   .mini .nm2 { font-size:13px; font-weight:700; max-width:88px; overflow:hidden;
                text-overflow:ellipsis; white-space:nowrap; }
   .mini .sc2 { font-size:11px; color:var(--sub); margin-top:1px; }
@@ -658,6 +665,31 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
   </div>
 </div>
 
+<div class="modal" id="fview">
+  <div class="theater" style="max-width:560px">
+    <div class="thead"><b id="fv-name">选手</b>
+      <button class="btn-mini" id="fv-close">✕ 关闭</button></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <canvas id="fv-portrait" width="110" height="110" style="background:#101018;border-radius:14px;flex-shrink:0"></canvas>
+      <div style="flex:1;min-width:210px">
+        <div id="fv-sub" class="tinfo" style="margin-bottom:7px"></div>
+        <div id="fv-elo" style="font-size:14px;margin-bottom:8px"></div>
+        <div class="bars" id="fv-bars"></div>
+      </div>
+    </div>
+    <div id="fv-bots" style="margin-top:10px"></div>
+    <h3 style="font-size:13px;margin:12px 0 6px">⚔️ 近期对局</h3>
+    <div class="cmtlist" id="fv-matches"></div>
+    <div class="cmthead" style="margin-top:12px">💬 选手留言板 <span class="tinfo" id="fv-cmt-count"></span></div>
+    <div class="cmtlist" id="fv-cmt-list"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="fv-cmt-author" placeholder="昵称（观众）" style="width:120px">
+      <input type="text" id="fv-cmt-body" placeholder="为这位选手留言…（回车发送）" style="flex:1">
+      <button class="big" id="fv-cmt-send" style="padding:8px 16px">发送</button>
+    </div>
+  </div>
+</div>
+
 <footer><div class="wrap">
   <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
   本地 Docker 演示 · 对局/评分均在服务端可信执行 · 回放含逐帧 HP 轨迹防篡改校验 ·
@@ -724,7 +756,7 @@ function renderLeaderboard(data) {
                    row.spec === 'ppo' ? 'PPO' : row.spec === 'random' ? 'random' : 'script';
       return `<tr>
         <td class="medal">${medals[i] || i + 1}</td>
-        <td><span class="pname">${nm.avatar} ${nm.name}</span></td>
+        <td><span class="pname clk" onclick="openFighterByName('${nm.name.replace(/'/g, "&#39;")}')">${nm.avatar} ${nm.name}</span></td>
         <td><span class="kind">${kind}</span></td>
         <td class="elo">${row.elo.toFixed(1)}</td>
         <td>${row.w}-${row.l}-${row.d}</td>
@@ -756,7 +788,7 @@ function renderWall(agents) {
         `<i style="width:${(v / m * 100).toFixed(1)}%;background:${col}"></i>`).join('') +
         `</div>`;
     }
-    return `<div class="mini">
+    return `<div class="mini" onclick="openFighter('${a.id}')" title="点击查看选手详情">
       <canvas class="pcva" width="48" height="48" data-skin='${skinJson}'
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <div style="flex:1;min-width:0">
@@ -819,6 +851,7 @@ async function loadAll() {
       api('/api/agents'), api('/api/leaderboard'),
       api('/api/matches?limit=300'), api('/api/stats')]);
     MP.all = matches; MP.total = stats.matches;
+    window.AGENTS = agents;
     renderWall(agents); renderMatches();
     renderLeaderboard(lb);
     $('st-agents').textContent = stats.agents;
@@ -1525,6 +1558,92 @@ async function sendComment() {
 }
 $('cmt-send').onclick = sendComment;
 $('cmt-body').onkeydown = e => { if (e.key === 'Enter') sendComment(); };
+
+/* ==================== 选手详情 ==================== */
+let FV = { id: null };
+
+function openFighterByName(nm) {
+  const a = (window.AGENTS || []).find(x => x.name === nm);
+  if (a) openFighter(a.id);
+}
+
+async function openFighter(id) {
+  const a = (window.AGENTS || []).find(x => x.id === id);
+  if (!a) return;
+  FV.id = id;
+  $('fview').classList.add('on');
+  $('fv-name').textContent = (a.skin && a.skin.base === 'robot' ? '🤖 ' : '🧑 ') + a.name;
+  drawPortrait($('fv-portrait'), a.skin,
+    !a.skin && ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k)));
+  $('fv-sub').textContent =
+    (a.owner_name ? `玩家 @${a.owner_name}` : '系统选手') + ' · ' + (a.note || '');
+  try {
+    const lb = await api('/api/leaderboard');
+    if (lb.ready) {
+      const i = lb.board.findIndex(b => b.spec === a.spec);
+      if (i >= 0) {
+        const b = lb.board[i];
+        $('fv-elo').innerHTML =
+          `<span class="elo" style="font-size:19px">${b.elo.toFixed(1)}</span>` +
+          ` · 榜单第 ${i + 1} 名 · ${b.w}胜${b.l}负${b.d}平 · 场均 ${b.mean_ticks.toFixed(0)} 帧`;
+      }
+    }
+  } catch (e) { $('fv-elo').textContent = ''; }
+  const s = a.score && a.score.scores;
+  $('fv-bars').innerHTML = s ?
+    bar('胜率', s.win_pts, 65, 'linear-gradient(90deg,#ffb16b,#ff7a36)') +
+    bar('速度', s.speed_pts, 20, 'linear-gradient(90deg,#7ce8f5,#5ad7e6)') +
+    bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')
+    : '<div class="tinfo">隐藏池评分排队中…</div>';
+  if (a.score && a.score.detail) {
+    $('fv-bots').innerHTML = '<div class="tinfo" style="margin-bottom:5px">逐对手胜率（隐藏池）：</div>' +
+      Object.entries(a.score.detail).map(([code, d]) => {
+        const wr = d.winrate, col = wr >= 0.67 ? 'var(--green)' : wr >= 0.34 ? 'var(--gold)' : 'var(--red)';
+        return `<span class="fvbot" title="${d.desc}">${code}<b style="color:${col}">${Math.round(wr * 100)}%</b></span>`;
+      }).join('');
+  } else $('fv-bots').innerHTML = '';
+  const ms = MP.all.filter(m => m.a.id === id || m.b.id === id).slice(0, 8);
+  $('fv-matches').innerHTML = ms.length ? ms.map(m => {
+    const o = m.outcome, w = o.winner;
+    const mine = m.a.id === id ? m.a : m.b, other = m.a.id === id ? m.b : m.a;
+    const res = w === null ? '⚖️平' : (w === 0 ? m.a : m.b).id === id ? '✅胜' : '❌负';
+    return `<div class="match">${res} <span class="vs">vs</span> ${other.avatar} ${other.name}
+      <div class="meta"><span>${o.ticks}帧</span>
+      ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}','${m.id}')">🎬</button>` : ''}
+      </div></div>`;
+  }).join('') : '<div class="tinfo">暂无对局记录</div>';
+  loadFvComments();
+}
+
+async function loadFvComments() {
+  if (!FV.id) return;
+  try {
+    const cs = await api(`/api/comments?target=player:${FV.id}`);
+    $('fv-cmt-count').textContent = `（${cs.length}）`;
+    $('fv-cmt-list').innerHTML = cs.length ? cs.map(c =>
+      `<div class="cmt"><span class="ct">${c.ts}</span>` +
+      `<span class="ca">${c.author}${c.certified ? ' <span class="badge">✓</span>' : ''}</span>` +
+      `${c.body.replace(/</g, '&lt;')}</div>`).join('')
+      : '<div class="tinfo">还没有留言，来说第一句</div>';
+    $('fv-cmt-list').scrollTop = 1e9;
+  } catch (e) {}
+}
+async function sendFvComment() {
+  const body = $('fv-cmt-body').value.trim();
+  if (!body || !FV.id) return;
+  try {
+    await api('/api/comments', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target: `player:${FV.id}`, body,
+                            author: $('fv-cmt-author').value.trim() || undefined})});
+    $('fv-cmt-body').value = '';
+    loadFvComments();
+  } catch (e) { alert(e.message); }
+}
+$('fv-close').onclick = () => { FV.id = null; $('fview').classList.remove('on'); };
+$('fview').addEventListener('click', e => { if (e.target === $('fview')) $('fv-close').onclick(); });
+$('fv-cmt-send').onclick = sendFvComment;
+$('fv-cmt-body').onkeydown = e => { if (e.key === 'Enter') sendFvComment(); };
 
 function closeReplay() {
   RP.open = false; RP.playing = false;
