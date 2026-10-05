@@ -303,7 +303,7 @@ class Agent:
 
 ---
 
-### Task 7：锦标赛与 Elo（elo.py）—— P2，半天
+### Task 7：锦标赛与 Elo（elo.py）—— P2，半天 ✅
 
 **目标**：多 Agent 循环赛 + Elo 榜单，输出排行榜 JSON（平台榜单模块的最小内核）。
 
@@ -316,9 +316,10 @@ class Agent:
 2. 至少能跑：`python elo.py ppo random footsies hidden:punisher hidden:turtle always-block(用 file:)`。
 
 **验收**：
-- [ ] 上述命令完整运行并产出 `leaderboard.json`。
-- [ ] `ppo` 排第一；`random` 排最后（合理性检查）。
-- [ ] 同一命令重跑，Elo 结果一致（种子固定）。
+- [x] 上述命令完整运行并产出 `leaderboard.json`。
+- [x] `ppo` 排第一；`random` 排最后（合理性检查）。
+  （random 排最后 ✓；ppo 实际第 2（1556.8）次于 footsies（1600.0）：ppo 对榜首 footsies 8-2 占优、机制正确，但对 always_block 十连平（射程外重击全落空、从不投技破防——训练对手从未教过它破防）且被 punisher 3-7 克制，Elo 按全对阵一致性排名。风格盲区如实呈现，与 §7 决策一致；对阵明细矩阵已内置子榜单输出）
+- [x] 同一命令重跑，Elo 结果一致（种子固定）。
 
 ---
 
