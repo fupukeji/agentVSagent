@@ -245,7 +245,7 @@ fighting-rl/
 
 ---
 
-### Task 5：Agent 接入层（agents/）—— P1，1 天
+### Task 5：Agent 接入层（agents/）—— P1，1 天 ✅
 
 **目标**：平台「Agent 接入：至少两种方式」的最小实现。统一协议 + 三个适配器。
 
@@ -272,10 +272,11 @@ class Agent:
 5. `file:<py路径>`：用户上传策略文件的最简形态——python 文件内含 `class Agent(BaseAgent)`。文档写明：MVP 阶段无沙箱，信任运行，沙箱化属于平台工程（本文档范围外）。
 
 **验收**：
-- [ ] `python arena.py run ppo footsies` 与 `python arena.py run ppo hidden:mirror` 均可运行。
-- [ ] `python arena.py run random file:agents/examples/always_block.py` 可运行（需附带这个示例文件：永远防御的 Bot）。
-- [ ] 启动 mock LLM 后 `python arena.py run http:127.0.0.1:8080 random` 可完成一局，回放 meta 中记录了调用次数与平均延迟。
-- [ ] 决策窗口演示：`WindowAgent(ppo, window=15)` vs 原生 `ppo` 各打 10 场，打印对比（预期：窗口版胜率下降但仍可观，说明机制可用）。
+- [x] `python arena.py run ppo footsies` 与 `python arena.py run ppo hidden:mirror` 均可运行。
+- [x] `python arena.py run random file:agents/examples/always_block.py` 可运行（需附带这个示例文件：永远防御的 Bot）。
+- [x] 启动 mock LLM 后 `python arena.py run http:127.0.0.1:8080 random` 可完成一局，回放 meta 中记录了调用次数与平均延迟。
+- [x] 决策窗口演示：`WindowAgent(ppo, window=15)` vs 原生 `ppo` 各打 10 场，打印对比（预期：窗口版胜率下降但仍可观，说明机制可用）。
+  （实测：w=15 时窗口版对 footsies/原生均为 0 胜——帧级格斗对控制粒度极敏感；但 w=1 与原生等价 9/10、w=3 为 9/10、w=5 为 6/10，机制正确且代价单调。如实呈现，见 `python -m agents.base`）
 
 ---
 
