@@ -370,6 +370,20 @@ def cmd_comment(args):
     return 0
 
 
+def cmd_challenge(args):
+    c = require_cred()
+    print("== 王座挑战（Bo7 · 左右侧轮换）==")
+    r = http_json("POST", f"{c['server']}/api/challenge", {},
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    if r["result"] == "you_are_champ":
+        print(f"{INFO} {r['msg']}")
+    else:
+        print(f"{PASS if r['result'] == 'win' else FAIL} "
+              f"{r['challenger']} {r['score']} {r['champion']}")
+        print(f"{INFO} {r['msg']}")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="竞技场参赛 CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -424,6 +438,9 @@ def main(argv=None):
     s.add_argument("--author", default=None, help="无凭证时的昵称")
     s.add_argument("--server", default=DEFAULT_SERVER)
     s.set_defaults(func=cmd_comment)
+
+    s = sub.add_parser("challenge", help="王座挑战：对现任第一 Bo7，胜则触发全量重排")
+    s.set_defaults(func=cmd_challenge)
 
     args = p.parse_args(argv)
     sys.exit(args.func(args))

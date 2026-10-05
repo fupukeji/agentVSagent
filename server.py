@@ -487,9 +487,47 @@ def api_tournament(body: dict | None = None):
              for e in roster}
     data = {"games_per_pair": games, "board": board, "pairwise": pairwise,
             "names": names, "updated": time.strftime("%m-%d %H:%M:%S")}
+    prev = json.loads((DATA / "leaderboard.json").read_text(encoding="utf-8")) \
+        if (DATA / "leaderboard.json").exists() else {}
+    hist = prev.get("history", [])[-19:]
+    if board:
+        hist.append({"ts": data["updated"], "spec": board[0]["spec"],
+                     "name": names[board[0]["spec"]]["name"]})
+    data["history"] = hist
     (DATA / "leaderboard.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return data
+
+
+@app.post("/api/challenge")
+def api_challenge(authorization: str = Header(None)):
+    """王座挑战（需玩家令牌）：对现任第一 Bo7。获胜≠直接加冕，但会立即触发
+    全量循环赛重排——王冠永远只能通过「击败当下所有人」的完整循环赛易主。"""
+    p = _auth_bearer(authorization)
+    me = _fighter_of(p["id"])
+    if not me:
+        raise HTTPException(404, "你还没有选手：先 join.py submit")
+    lb_path = DATA / "leaderboard.json"
+    if not lb_path.exists():
+        raise HTTPException(409, "榜单尚未生成，无法挑战")
+    lb = json.loads(lb_path.read_text(encoding="utf-8"))
+    champ = next((x for x in load_roster() if x["spec"] == lb["board"][0]["spec"]), None)
+    if not champ:
+        raise HTTPException(409, "现任第一已离场")
+    if champ["id"] == me["id"]:
+        return {"result": "you_are_champ",
+                "msg": f"你已是现任第一（{me['name']}）。卫冕靠实力守住每届循环赛。"}
+    with LOCK:
+        cw, cc = _best_of(me, champ, 7, tag="王座挑战")
+    if cw > cc:   # 挑战成功：立即重排全量循环赛，王冠由新一届冠军获得
+        threading.Thread(target=_auto_cycle, daemon=True).start()
+    return {"result": "win" if cw > cc else "lose",
+            "challenger": me["name"], "champion": champ["name"],
+            "score": f"{cw}:{cc}",
+            "msg": (f"挑战成功 {cw}:{cc}！全量循环赛已触发重排——"
+                    f"只有击败在场所有人才能加冕。") if cw > cc else
+                   (f"挑战失败 {cw}:{cc}。王者仍在王座——"
+                    f"他能当第一，正是因为当下没人能全面赢他。")}
 
 
 @app.post("/api/agents/upload")
@@ -573,18 +611,47 @@ def _kickoff():
 
 
 def _auto_cycle(new_agent_id=None):
-    """上传后自动：补评分（若无）→ 空闲则重跑锦标赛。后台线程执行。"""
+    """上传后自动：入位战（vs 现任第一）→ 补评分 → 空闲则全量循环赛。后台线程执行。"""
     try:
-        if new_agent_id:
-            e = next((x for x in load_roster() if x["id"] == new_agent_id), None)
-            if e and not (SCORES / f"{e['id']}.json").exists():
+        e = next((x for x in load_roster() if x["id"] == new_agent_id), None) \
+            if new_agent_id else None
+        if e:
+            if not (SCORES / f"{e['id']}.json").exists():
                 print(f"[arena] 自动评分: {e['name']} …", flush=True)
                 api_score(e["id"])
+            lb = json.loads((DATA / "leaderboard.json").read_text(encoding="utf-8")) \
+                if (DATA / "leaderboard.json").exists() else {"ready": False}
+            if lb.get("ready") and lb["board"]:
+                top = lb["board"][0]
+                champ = next((x for x in load_roster()
+                              if x["spec"] == top["spec"]), None)
+                if champ and champ["id"] != e["id"]:
+                    print(f"[arena] 入位战: {e['name']} 挑战现任第一 "
+                          f"{champ['name']}（Bo3）…", flush=True)
+                    _best_of(e, champ, 3, tag="入位战")
         if not TOUR["running"]:
             print("[arena] 自动锦标赛刷新…", flush=True)
             api_tournament({"games": 6})
     except Exception as ex:  # noqa: BLE001
         print(f"[arena] 自动周期异常: {ex}", flush=True)
+
+
+def _best_of(challenger, champion, n, tag="挑战赛"):
+    """BoN 对抗（左右侧轮换），逐场入档。需持有 LOCK。返回 (挑战者胜场, 冠军胜场)。"""
+    cw = cc = 0
+    for j in range(n):
+        a, b = (challenger, champion) if j % 2 == 0 else (champion, challenger)
+        rec = run_match(a, b, (int(time.time()) + j) % 100000)
+        if rec["outcome"]["winner"] is not None:
+            if rec["outcome"]["winner"] == 0:
+                if j % 2 == 0: cw += 1
+                else: cc += 1
+            else:
+                if j % 2 == 0: cc += 1
+                else: cw += 1
+        print(f"  [{tag}] 第{j + 1}场 {rec['a']['name']} vs {rec['b']['name']} "
+              f"→ {rec['outcome']['result']}（挑战者 {cw}:{cc}）", flush=True)
+    return cw, cc
 
 
 def _exhibition():

@@ -873,14 +873,24 @@ function renderWall(lb) {
     const b0 = lb && lb.ready ? lb.board[0] : null;
     const tt = b0 ? eloTitle(b0.elo) : null;
     const s = c0.score && c0.score.scores;
+    let reignLine = '';
+    if (lb && lb.history && lb.history.length) {
+      const h = lb.history, last = h[h.length - 1];
+      if (b0 && last.spec === b0.spec) {
+        let reign = 0, i = h.length - 1;
+        while (i >= 0 && h[i].spec === last.spec) { reign++; i--; }
+        reignLine = ` · 加冕于 ${last.ts}` +
+          (reign > 1 ? ` · 已卫冕 ${reign} 届` : ' · 新科冠军');
+      }
+    }
     $('hall-champ').innerHTML = `
-      <div class="champ" onclick="openFighter('${c0.id}')">
+      <div class="champ" onclick="openFighter('${c0.id}')" title="加冕条件：赢得最近一届全量循环赛（击败在场所有对手）">
         <div class="crown">👑</div>
         <canvas class="pcva" width="76" height="76" id="champ-ava"></canvas>
         <div style="flex:1;min-width:0">
           <div class="cw">${c0.name}
             ${tt ? `<span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}55">${tt[1]}</span>` : ''}</div>
-          <div class="cs">${c0.owner_name ? '玩家 @' + c0.owner_name + ' · ' : ''}${b0 ? b0.w + '胜' + b0.l + '负' + b0.d + '平' : (c0.note || '')}</div>
+          <div class="cs">${c0.owner_name ? '玩家 @' + c0.owner_name + ' · ' : ''}${b0 ? b0.w + '胜' + b0.l + '负' + b0.d + '平' : (c0.note || '')}${reignLine}</div>
           ${s ? `<div class="sc2" style="margin-top:5px"><b style="font-size:16px">${s.total}</b> 分 · ${b0 ? '等级分 <b style="color:var(--gold)">' + b0.elo.toFixed(0) + '</b>' : ''}</div>` : '<div class="sc2" style="margin-top:5px">考核进行中 ⏳</div>'}
         </div>
       </div>`;
