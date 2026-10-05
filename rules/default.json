@@ -1,0 +1,21 @@
+{
+  "name": "default",
+  "version": 1,
+  "walk": {"forward": 0.009, "back": 0.007},
+  "chip": 0.15,
+  "min_gap": 0.05,
+  "push": {"hit": 0.03, "block": 0.018},
+  "max_hp": 100,
+  "max_ticks": 900,
+  "moves": [
+    {"slot": 0, "name": "后撤", "kind": "move", "dir": "back"},
+    {"slot": 1, "name": "前进", "kind": "move", "dir": "forward"},
+    {"slot": 2, "name": "轻击", "kind": "strike", "startup": 3, "active": 2,
+     "recovery": 5, "reach": 0.13, "damage": 7, "hitstun": 9, "blockstun": 4},
+    {"slot": 3, "name": "重击", "kind": "strike", "startup": 8, "active": 3,
+     "recovery": 14, "reach": 0.19, "damage": 18, "hitstun": 15, "blockstun": 4},
+    {"slot": 4, "name": "防御", "kind": "guard"},
+    {"slot": 5, "name": "投技", "kind": "throw", "startup": 5, "active": 2,
+     "recovery": 10, "reach": 0.07, "damage": 14, "hitstun": 18, "blockstun": 0}
+  ]
+}

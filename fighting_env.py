@@ -15,10 +15,20 @@
 - 双方同时进入判定帧时互拼（Trade），各吃伤害
 - 时间到按剩余血量判定胜负
 
+规则包
+------
+帧数据与常量外置于 rules/default.json（平台「规则包」schema v1）；
+`FightingEnv` / `FootsiesBot` 均可传 `rules=dict|路径` 自定义。
+文件缺失时回退到内置常量并打 warning（保证向后兼容）。
+
 动作空间（6）
 ------------
 0 后撤 | 1 前进 | 2 轻击 | 3 重击 | 4 防御 | 5 投技
 """
+
+import json
+import os
+import sys
 
 import numpy as np
 import gymnasium as gym
@@ -77,12 +87,102 @@ A_BACK, A_FWD, A_LIGHT, A_HEAVY, A_BLOCK, A_THROW = range(6)
 
 
 # ---------------------------------------------------------------
+# 规则包（Rules Pack）—— 平台「规则包」schema v1
+# ---------------------------------------------------------------
+RULES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rules")
+DEFAULT_RULES_PATH = os.path.join(RULES_DIR, "default.json")
+
+# 内置常量：与 rules/default.json 完全一致，文件缺失时回退用
+BUILTIN_RULES = {
+    "name": "default",
+    "version": 1,
+    "walk": {"forward": 0.009, "back": 0.007},
+    "chip": 0.15,
+    "min_gap": 0.05,
+    "push": {"hit": 0.03, "block": 0.018},
+    "max_hp": 100,
+    "max_ticks": 900,
+    "moves": [
+        {"slot": 0, "name": "后撤", "kind": "move", "dir": "back"},
+        {"slot": 1, "name": "前进", "kind": "move", "dir": "forward"},
+        {"slot": 2, "name": "轻击", "kind": "strike", "startup": 3, "active": 2,
+         "recovery": 5, "reach": 0.13, "damage": 7, "hitstun": 9, "blockstun": 4},
+        {"slot": 3, "name": "重击", "kind": "strike", "startup": 8, "active": 3,
+         "recovery": 14, "reach": 0.19, "damage": 18, "hitstun": 15, "blockstun": 4},
+        {"slot": 4, "name": "防御", "kind": "guard"},
+        {"slot": 5, "name": "投技", "kind": "throw", "startup": 5, "active": 2,
+         "recovery": 10, "reach": 0.07, "damage": 14, "hitstun": 18, "blockstun": 0},
+    ],
+}
+
+
+class Rules:
+    """解析后的规则包：环境 / Bot / 角色共享的常量与帧数据。"""
+
+    def __init__(self, data: dict):
+        if "moves" not in data:
+            raise ValueError("规则包缺少 moves 字段")
+        self.raw = data
+        self.name = data.get("name", "custom")
+        self.version = int(data.get("version", 1))
+        walk = data.get("walk", {})
+        self.walk_f = float(walk.get("forward", WALK_F))
+        self.walk_b = float(walk.get("back", WALK_B))
+        self.chip = float(data.get("chip", CHIP))
+        self.min_gap = float(data.get("min_gap", MIN_GAP))
+        push = data.get("push", {})
+        self.push_hit = float(push.get("hit", HIT_PUSH))
+        self.push_block = float(push.get("block", BLOCK_PUSH))
+        self.max_hp = int(data.get("max_hp", 100))
+        self.max_ticks = int(data.get("max_ticks", 900))
+        n = len(data["moves"])
+        moves: list = [None] * n
+        for m in data["moves"]:
+            mv = Move(m["name"], m.get("startup", 0), m.get("active", 0),
+                      m.get("recovery", 0), m.get("reach", 0.0),
+                      m.get("damage", 0), m.get("kind", "strike"),
+                      hitstun=m.get("hitstun", 8), blockstun=m.get("blockstun", 4))
+            mv.slot = int(m.get("slot", -1))
+            if not (0 <= mv.slot < n) or moves[mv.slot] is not None:
+                raise ValueError(f"非法或重复的 slot: {mv.slot} ({mv.name})")
+            moves[mv.slot] = mv
+        if any(m is None for m in moves):
+            raise ValueError("moves 的 slot 不连续")
+        self.moves = moves
+
+    def __repr__(self):
+        return f"Rules(name={self.name!r}, version={self.version}, moves={len(self.moves)})"
+
+
+def load_rules(rules=None) -> Rules:
+    """rules: dict → 直接解析；str/Path → JSON 路径；None → rules/default.json
+    （文件缺失时回退内置常量并打 warning，保证向后兼容）。"""
+    if rules is None:
+        path = DEFAULT_RULES_PATH
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return Rules(json.load(f))
+        print("[warn] 未找到 rules/default.json，回退到内置常量", file=sys.stderr)
+        return Rules(BUILTIN_RULES)
+    if isinstance(rules, (str, os.PathLike)):
+        with open(rules, encoding="utf-8") as f:
+            return Rules(json.load(f))
+    return Rules(rules)
+
+
+# 模块级默认规则（default.json 存在时与其一致，否则为内置常量）
+_DEFAULT_RULES = load_rules()
+
+
+# ---------------------------------------------------------------
 # 角色
 # ---------------------------------------------------------------
 class Fighter:
-    def __init__(self, name):
+    def __init__(self, name, rules=None):
+        r = rules if isinstance(rules, Rules) else _DEFAULT_RULES
         self.name = name
-        self.max_hp = 100
+        self.max_hp = r.max_hp
+        self.moves = r.moves          # 出招表（与规则包绑定）
         self.hp = self.max_hp
         self.x = 0.5
         self.state = S_IDLE
@@ -99,7 +199,7 @@ class Fighter:
                               S_BLOCKSTUN, S_HITSTUN)
 
     def start(self, action):
-        self.move = MOVES[action]
+        self.move = self.moves[action]
         self.has_hit = False
         self.state = S_STARTUP
         self.frames_left = self.move.startup
@@ -116,12 +216,42 @@ class FootsiesBot:
     - 交战距离内随机打投择
     """
 
-    def __init__(self, punish=0.8, seed=None):
+    def __init__(self, punish=0.8, want_dist=0.155, mixup=None, seed=None, rules=None):
+        r = rules if isinstance(rules, Rules) else _DEFAULT_RULES
+        self.rules = r
+        self.moves = r.moves
         self.punish = punish          # 读取成功率（模拟人类反应，<1 更真实）
+        self.want_dist = want_dist    # 理想交战距离（立回核心参数）
+        self.mixup = mixup            # 打投择概率表；None = 保持原版行为
+        if mixup is not None:
+            self._mix = self._parse_mixup(mixup)
         self.rng = np.random.default_rng(seed)
 
+    @staticmethod
+    def _parse_mixup(mixup: dict):
+        """校验并补全打投择概率表：{"throw"/"light"/"heavy"/"block"/"back": p}。
+        未给出的键按 0 处理，剩余概率全部补给 light（throw 仍受投技距离门控）。"""
+        mix = {"throw": 0.0, "light": 0.0, "heavy": 0.0, "block": 0.0, "back": 0.0}
+        unknown = set(mixup) - set(mix)
+        if unknown:
+            raise ValueError(f"mixup 含未知键: {unknown}")
+        mix.update({k: float(v) for k, v in mixup.items()})
+        others = mix["throw"] + mix["heavy"] + mix["block"] + mix["back"]
+        if others + mix["light"] > 1.0 + 1e-9:
+            raise ValueError(f"mixup 概率之和超过 1: {mixup}")
+        mix["light"] += max(0.0, 1.0 - others)   # 剩余概率给 light
+        return mix
+
+    def set_rules(self, rules):
+        """更换规则包（供 FightingEnv 在加载自定义规则时同步自身）。"""
+        r = rules if isinstance(rules, Rules) else load_rules(rules)
+        self.rules = r
+        self.moves = r.moves
+
     def act(self, opp, me):
-        d = me.x - opp.x              # 玩家在左，机器在右，d > 0
+        d = abs(me.x - opp.x)        # 交战距离（与站位无关，side 0/1 通用）
+        mv_light, mv_heavy, mv_throw = (self.moves[A_LIGHT],
+                                        self.moves[A_HEAVY], self.moves[A_THROW])
         rng = self.rng.random
 
         if me.busy():
@@ -129,29 +259,39 @@ class FootsiesBot:
 
         # ---- 概率性读取（模拟人类反应延迟/失误）----
         if rng() < self.punish:
-            if opp.state == S_RECOVERY and d <= MOVES[A_HEAVY].reach:
+            if opp.state == S_RECOVERY and d <= mv_heavy.reach:
                 return A_HEAVY        # 确反：惩罚收招
-            if opp.state == S_STARTUP and d <= MOVES[A_HEAVY].reach:
+            if opp.state == S_STARTUP and d <= mv_heavy.reach:
                 return A_BLOCK        # 对方出招 → 拉防
-            if (opp.blocking or opp.state == S_BLOCKSTUN) and d <= MOVES[A_THROW].reach:
+            if (opp.blocking or opp.state == S_BLOCKSTUN) and d <= mv_throw.reach:
                 return A_THROW        # 破防投
 
         # ---- 立回：维持理想交战距离 ----
-        want = 0.155                  # 刚好在轻击(0.13)与重击(0.19)之间
-        if d > want + 0.035:
+        if d > self.want_dist + 0.035:
             return A_FWD
-        if d < want - 0.035:
+        if d < self.want_dist - 0.035:
             return A_BACK
 
         # ---- 交战距离内的打投择 ----
         r = rng()
-        if d < 0.09 and r < 0.15:
+        if self.mixup is None:        # 原版默认行为（向后兼容）
+            if d < 0.09 and r < 0.15:
+                return A_THROW
+            if r < 0.50:
+                return A_LIGHT
+            if r < 0.62:
+                return A_HEAVY
+            if r < 0.82:
+                return A_BLOCK
+            return A_BACK
+        m = self._mix                 # 参数化打投择（投技仍受距离门控）
+        if d <= mv_throw.reach + 0.02 and r < m["throw"]:
             return A_THROW
-        if r < 0.50:
+        if r < m["throw"] + m["light"]:
             return A_LIGHT
-        if r < 0.62:
+        if r < m["throw"] + m["light"] + m["heavy"]:
             return A_HEAVY
-        if r < 0.82:
+        if r < m["throw"] + m["light"] + m["heavy"] + m["block"]:
             return A_BLOCK
         return A_BACK
 
@@ -170,15 +310,19 @@ class FightingEnv(gym.Env):
     NUM_ACTIONS = 6
     OBS_DIM = 21
 
-    def __init__(self, max_ticks=900, bot=None):
+    def __init__(self, max_ticks=None, bot=None, rules=None):
         super().__init__()
-        self.max_ticks = max_ticks
-        self.bot = bot or FootsiesBot()
+        self.rules = load_rules(rules)
+        # 显式传入的 max_ticks 覆盖规则包（None 时用规则包的 max_ticks）
+        self.max_ticks = self.rules.max_ticks if max_ticks is None else int(max_ticks)
+        self.bot = bot if bot is not None else FootsiesBot(rules=self.rules)
+        if hasattr(self.bot, "set_rules"):   # 自带 Bot 同步本环境规则包
+            self.bot.set_rules(self.rules)
         self.action_space = spaces.Discrete(self.NUM_ACTIONS)
         self.observation_space = spaces.Box(
             -np.inf, np.inf, (self.OBS_DIM,), np.float32)
-        self.p1 = Fighter("AI")
-        self.p2 = Fighter("机器")
+        self.p1 = Fighter("AI", rules=self.rules)
+        self.p2 = Fighter("机器", rules=self.rules)
         self.t = 0
 
     # ---------- Gym API ----------
@@ -204,6 +348,7 @@ class FightingEnv(gym.Env):
 
     def step_both(self, a_p, a_e):
         p, e = self.p1, self.p2
+        r = self.rules
         p.hit_taken = e.hit_taken = 0
         p.dealt = e.dealt = 0
 
@@ -234,18 +379,18 @@ class FightingEnv(gym.Env):
             if a in (A_LIGHT, A_HEAVY, A_THROW):
                 f.start(a)
             elif a == A_FWD:
-                f.x += WALK_F if f is p else -WALK_F
+                f.x += r.walk_f if f is p else -r.walk_f
             elif a == A_BACK:
-                f.x += -WALK_B if f is p else WALK_B
+                f.x += -r.walk_b if f is p else r.walk_b
 
         # ---- 3. 碰撞与舞台边界 ----
         lo, hi = STAGE
         p.x = float(np.clip(p.x, lo, hi))
         e.x = float(np.clip(e.x, lo, hi))
-        if e.x - p.x < MIN_GAP:
+        if e.x - p.x < r.min_gap:
             mid = (p.x + e.x) / 2
-            p.x = max(lo, mid - MIN_GAP / 2)
-            e.x = min(hi, mid + MIN_GAP / 2)
+            p.x = max(lo, mid - r.min_gap / 2)
+            e.x = min(hi, mid + r.min_gap / 2)
         d = e.x - p.x
 
         # ---- 4. 打击判定（先收集再结算 → 支持互拼 Trade）----
@@ -257,15 +402,15 @@ class FightingEnv(gym.Env):
         for atk, dfn in strikes:
             atk.has_hit = True
             if dfn.blocking:
-                dmg = max(1, int(atk.move.damage * CHIP))
+                dmg = max(1, int(atk.move.damage * r.chip))
                 dfn.state = S_BLOCKSTUN
                 dfn.frames_left = atk.move.blockstun
-                self._push(dfn, BLOCK_PUSH)
+                self._push(dfn, r.push_block)
             else:
                 dmg = atk.move.damage
                 dfn.state = S_HITSTUN
                 dfn.frames_left = atk.move.hitstun
-                self._push(dfn, HIT_PUSH)
+                self._push(dfn, r.push_hit)
             dfn.hp = max(0, dfn.hp - dmg)
             dfn.hit_taken += dmg
             atk.dealt += dmg
@@ -284,7 +429,7 @@ class FightingEnv(gym.Env):
                     dfn.state = S_HITSTUN
                     dfn.frames_left = atk.move.hitstun
                     dfn.blocking = False
-                    self._push(dfn, HIT_PUSH)
+                    self._push(dfn, r.push_hit)
 
         # ---- 6. 回合结束与奖励 ----
         self.t += 1

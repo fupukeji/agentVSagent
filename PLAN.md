@@ -107,7 +107,7 @@ fighting-rl/
 
 ---
 
-### Task 1：规则包外置（moves.json）—— P0，半天
+### Task 1：规则包外置（moves.json）—— P0，半天 ✅
 
 **目标**：把 `fighting_env.py` 里硬编码的帧数据和常量抽到 `rules/default.json`，环境从 JSON 加载。这是平台「规则包」概念的最小实现：改一个数字 = 一个规则变体，用户可 fork。
 
@@ -144,9 +144,9 @@ fighting-rl/
 4. 所有常量改为从 rules 读取（模块级常量保留为默认值，供旧代码 import）。
 
 **验收**：
-- [ ] `.venv/bin/python fighting_env.py` 冒烟测试结果与改造前一致（随机 20 场，约 1胜19负，允许种子内一致即可）。
-- [ ] 临时改一份 JSON（如轻击 reach 0.13→0.20）加载后对局行为明显变化，恢复后一致。
-- [ ] `train.py` 不改一行仍可运行。
+- [x] `.venv/bin/python fighting_env.py` 冒烟测试结果与改造前一致（随机 20 场，约 1胜19负，允许种子内一致即可）。
+- [x] 临时改一份 JSON（如轻击 reach 0.13→0.20）加载后对局行为明显变化，恢复后一致。
+- [x] `train.py` 不改一行仍可运行。
 
 ---
 
