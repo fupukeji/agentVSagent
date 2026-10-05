@@ -181,6 +181,19 @@
   footer { border-top:1px solid var(--line); margin-top:40px; padding:22px 0 34px;
     color:var(--sub); font-size:12px; line-height:1.9; }
   footer b { color:var(--txt); }
+
+  /* ============ 回放剧场 ============ */
+  .modal { position:fixed; inset:0; background:rgba(5,7,10,.85); z-index:50;
+           display:none; align-items:center; justify-content:center; padding:18px; }
+  .modal.on { display:flex; }
+  .theater { background:var(--panel); border:1px solid var(--line); border-radius:16px;
+             padding:14px 14px 12px; max-width:1040px; width:100%; box-shadow:0 24px 80px rgba(0,0,0,.6); }
+  .theater canvas { width:100%; border-radius:10px; display:block; background:#101018; }
+  .tctrl { display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .tctrl input[type=range] { flex:1; min-width:160px; accent-color:var(--acc); padding:0; }
+  .tinfo { color:var(--sub); font-size:12px; white-space:nowrap; }
+  .thead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .thead b { font-size:15px; }
 </style>
 </head>
 <body>
@@ -587,6 +600,25 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
 
 </div><!-- /wrap -->
 
+<div class="modal" id="theater">
+  <div class="theater">
+    <div class="thead"><b id="th-title">🎬 回放剧场</b>
+      <button class="btn-mini" id="th-close">✕ 关闭</button></div>
+    <canvas id="th-canvas" width="1000" height="520"></canvas>
+    <div class="tctrl">
+      <button class="big" id="th-play">⏸ 暂停</button>
+      <select id="th-speed">
+        <option value="6">慢速 6 t/s</option>
+        <option value="15" selected>标准 15 t/s</option>
+        <option value="30">快速 30 t/s</option>
+        <option value="60">实速 60 t/s</option>
+      </select>
+      <input type="range" id="th-seek" min="0" max="100" value="0">
+      <span class="tinfo" id="th-info">–</span>
+    </div>
+  </div>
+</div>
+
 <footer><div class="wrap">
   <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
   本地 Docker 演示 · 对局/评分均在服务端可信执行 · 回放含逐帧 HP 轨迹防篡改校验 ·
@@ -685,7 +717,8 @@ function renderMatches(ms) {
     return `<div class="match">${an}<span class="vs">vs</span>${bn}
       <span class="kind">${res}</span>
       <div class="meta"><span>${o.ticks}帧 · seed ${m.seed}</span>
-        ${m.replay ? `<a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">回放</a>
+        ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}')">🎬 动画</button>
+        <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">回放JSON</a>
         <button class="btn-mini" onclick="copyCmd('${m.replay}')">复放命令</button>` : ''}
       </div></div>`;
   }).join('') : '<div class="loading">暂无对局——去演控台约一场</div>';
@@ -815,6 +848,388 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
     drop.classList.remove('has'); drop._file = null; $('up-name').value = '';
     loadAll();
   } catch (e) { setStatus(e.message, 'err'); }
+});
+
+/* ==================== 回放剧场（Canvas 动画） ==================== */
+const TC = { W: 1000, H: 520, SY: 350, PX0: 100, PX1: 900 };
+const HERO = { skin:'#ffddb3', hair:'#603c26', band:'#ff7a36', cloth:'#f8f8fa',
+               belt:'#ff7a36', fist:'#ffc8a0', pants:'#465a8c', shoe:'#f0f0f5', ribbon:'#ff7a36' };
+const ROBOT = { metal:'#acc4ce', dark:'#607482', visor:'#18222c', eye:'#5ae6f0',
+                belly:'#d6e8ec', fist:'#96b0ba', pants:'#788c98', shoe:'#50606c' };
+const IDLE=0, STARTUP=1, ACTIVE=2, RECOVERY=3, BLOCKSTUN=4, HITSTUN=5;
+const rpCtx = $('th-canvas').getContext('2d');
+const RP = { open:false, data:null, idx:0, playing:false, tps:15, last:0, acc:0,
+             fx:[], prevX:[null,null], _throw:[false,false] };
+
+function rr(c, x, y, w, h, r) {  // roundRect 兼容
+  c.beginPath(); c.moveTo(x+r, y); c.arcTo(x+w, y, x+w, y+h, r);
+  c.arcTo(x+w, y+h, x, y+h, r); c.arcTo(x, y+h, x, y, r); c.arcTo(x, y, x+w, y, r);
+  c.closePath();
+}
+function cap(c, col, ax, ay, bx, by, r) {
+  c.strokeStyle = col; c.lineWidth = r*2; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+}
+function dot(c, col, x, y, r) { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+function star(c, col, x, y, r, n=8) {
+  c.fillStyle = col; c.beginPath();
+  for (let i = 0; i < n*2; i++) {
+    const rad = i%2 ? r*0.4 : r, a = Math.PI*i/n;
+    c[i ? 'lineTo' : 'moveTo'](x + rad*Math.cos(a), y + rad*Math.sin(a));
+  }
+  c.closePath(); c.fill();
+}
+function tag(c, txt, cx, y) {
+  c.font = '13px -apple-system,"PingFang SC",sans-serif';
+  const w = c.measureText(txt).width + 16;
+  c.fillStyle = '#1c1c28'; rr(c, cx - w/2, y - 12, w, 22, 11); c.fill();
+  c.fillStyle = '#e8ecf3'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(txt, cx, y);
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+}
+
+function faceHero(c, hx, hy, fc, t, st, hp) {
+  const fl = 3 * Math.sin(t * 0.25), bx = hx - fc*20;
+  c.fillStyle = HERO.ribbon; c.beginPath();
+  c.moveTo(bx, hy-8); c.lineTo(bx - fc*16, hy-12+fl); c.lineTo(bx - fc*12, hy-2+fl);
+  c.closePath(); c.fill();
+  dot(c, HERO.hair, hx, hy-6, 19);
+  for (const [dx, tip] of [[-13,10],[-4,14],[6,12],[14,10]]) {
+    c.fillStyle = HERO.hair; c.beginPath();
+    c.moveTo(hx+dx-4, hy-14); c.lineTo(hx+dx+4, hy-14); c.lineTo(hx+dx+fc*2, hy-14-tip);
+    c.closePath(); c.fill();
+  }
+  dot(c, HERO.skin, hx, hy+2, 17);
+  c.fillStyle = HERO.band; rr(c, hx-18, hy-12, 36, 7, 3); c.fill();
+  dot(c, HERO.band, hx + fc*10, hy-9, 4);
+  const ey = hy + 1, blink = (t % 160 < 6) && st === IDLE;
+  for (const ex of [hx + fc*3 - 7, hx + fc*3 + 7]) {
+    if (hp <= 0) {
+      c.strokeStyle = '#3c281e'; c.lineWidth = 2; c.beginPath();
+      c.moveTo(ex-3, ey-3); c.lineTo(ex+3, ey+3); c.moveTo(ex+3, ey-3); c.lineTo(ex-3, ey+3); c.stroke();
+    } else if (st === HITSTUN) {
+      c.strokeStyle = '#3c281e'; c.lineWidth = 2;
+      c.beginPath(); c.arc(ex, ey, 3, 0, 4.5); c.stroke();
+      c.beginPath(); c.moveTo(ex+3, ey); c.lineTo(ex+6, ey-3); c.stroke();
+    } else if (blink) {
+      c.strokeStyle = '#3c281e'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(ex-4, ey); c.lineTo(ex+4, ey); c.stroke();
+    } else {
+      c.fillStyle = '#fff'; c.beginPath(); c.ellipse(ex, ey, 4, 4.5, 0, 0, 7); c.fill();
+      dot(c, '#282837', ex + fc, ey+1, 3); dot(c, '#fff', ex + fc*2, ey-1, 1);
+    }
+  }
+  if (st === STARTUP || st === ACTIVE) {
+    c.strokeStyle = HERO.hair; c.lineWidth = 2; const bxx = hx + fc*3;
+    c.beginPath(); c.moveTo(bxx-9, ey-8); c.lineTo(bxx-2, ey-6);
+    c.moveTo(bxx+2, ey-6); c.lineTo(bxx+9, ey-8); c.stroke();
+  }
+  const my = hy + 10, mx = hx + fc*3;
+  if (st === STARTUP || st === ACTIVE) {
+    c.fillStyle = '#783c32'; c.beginPath(); c.ellipse(mx, my+2, 5, 4, 0, 0, 7); c.fill();
+  } else if (st === HITSTUN) {
+    c.strokeStyle = '#783c32'; c.lineWidth = 2; c.beginPath();
+    c.moveTo(mx-5, my); c.lineTo(mx-1, my+2); c.lineTo(mx+3, my); c.lineTo(mx+7, my+2); c.stroke();
+  } else {
+    c.strokeStyle = '#783c32'; c.lineWidth = 2; c.beginPath();
+    c.arc(mx, my-2, 6, 0.55, 2.6); c.stroke();
+  }
+}
+
+function faceRobot(c, hx, hy, fc, t, st, hp, blocking) {
+  c.strokeStyle = ROBOT.dark; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(hx, hy-18); c.lineTo(hx, hy-30); c.stroke();
+  const on = Math.floor(t/12) % 2 === 0;
+  dot(c, on ? '#ff786e' : ROBOT.dark, hx, hy-32, 4);
+  dot(c, ROBOT.metal, hx, hy, 19); dot(c, ROBOT.belly, hx, hy+4, 14);
+  c.fillStyle = ROBOT.visor; rr(c, hx-13, hy-4, 26, 12, 6); c.fill();
+  if (hp <= 0) {
+    c.strokeStyle = '#ff5a50'; c.lineWidth = 2;
+    for (const ex of [hx-6, hx+6]) {
+      c.beginPath(); c.moveTo(ex-3, hy-4); c.lineTo(ex+3, hy+8);
+      c.moveTo(ex+3, hy-4); c.lineTo(ex-3, hy+8); c.stroke();
+    }
+  } else if (st === HITSTUN) {
+    c.strokeStyle = '#ff8c78'; c.lineWidth = 2;
+    c.beginPath(); c.arc(hx, hy+2, 4, 0, 4.5); c.stroke();
+  } else {
+    let col = ROBOT.eye;
+    if (st === ACTIVE) col = '#ffaa46';
+    else if (st === BLOCKSTUN || blocking) col = '#78b4ff';
+    const scan = Math.round(6 * Math.sin(t * 0.2));
+    dot(c, col, hx - 5 + scan, hy + 2, 3); dot(c, col, hx + 5 + scan, hy + 2, 3);
+  }
+  c.strokeStyle = ROBOT.dark; c.lineWidth = 2;
+  for (const gx of [-6, -2, 2, 6]) {
+    c.beginPath(); c.moveTo(hx+gx, hy+11); c.lineTo(hx+gx, hy+14); c.stroke();
+  }
+  if (st === STARTUP || st === ACTIVE) dot(c, '#ffaa46', hx + fc*3, hy+12, 3);
+}
+
+function drawFighter(c, side, fr, dx, t, heavy, isThrow) {
+  const fc = side === 0 ? 1 : -1;
+  const pal = side === 0 ? HERO : ROBOT;
+  const isHero = side === 0;
+  const [x, hp, st, blocking] = fr;
+  const px = TC.PX0 + x * (TC.PX1 - TC.PX0);
+  const ko = hp <= 0;
+  const bob = (st === IDLE && !ko) ? 2 * Math.sin(t * 0.15) : 0;
+  const lean = Math.max(-1, Math.min(1, dx * 130)) * fc;
+  const limb = isHero ? HERO.skin : ROBOT.metal;
+
+  c.fillStyle = '#0a0a10'; c.beginPath();
+  c.ellipse(px, TC.SY - 1, 26, 5, 0, 0, 7); c.fill();   // 地面阴影
+
+  if (ko) {
+    const by = TC.SY - 12;
+    cap(c, isHero ? HERO.cloth : ROBOT.metal, px - fc*6, by, px + fc*30, by, 14);
+    cap(c, pal.pants, px + fc*30, by, px + fc*46, by - 8, 8);
+    const hcx = px - fc*30, hcy = by - 4;
+    isHero ? faceHero(c, hcx, hcy, fc, t, st, 0) : faceRobot(c, hcx, hcy, fc, t, st, 0, false);
+    for (let k = 0; k < 3; k++) {
+      const a = t * 0.2 + k * 2.09;
+      star(c, '#ffdc5a', hcx + 22*Math.cos(a), hcy - 26 + 6*Math.sin(a), 5, 5);
+    }
+    return;
+  }
+
+  const by = TC.SY - 62 + bob, bx = px + lean * 5;
+  const hc = [bx + lean * 4, TC.SY - 108 + bob];
+  const step = Math.abs(dx) > 1e-9 ? Math.sin(t * 2.2) * 6 : 0;
+  for (const fdx of [10 + step, -8 - step]) {
+    const foot = [bx + fc * fdx, TC.SY - 3];
+    cap(c, pal.pants, bx + fc * (fdx * 0.3), by + 18, foot[0], foot[1], 7);
+    c.fillStyle = pal.shoe; c.beginPath();
+    c.ellipse(foot[0], foot[1], 9, 4.5, 0, 0, 7); c.fill();
+  }
+  c.fillStyle = isHero ? HERO.cloth : ROBOT.metal;
+  rr(c, bx - 21, by - 28, 42, 52, 16); c.fill();
+  if (isHero) {
+    c.fillStyle = HERO.belt; rr(c, bx - 21, by + 8, 42, 9, 4); c.fill();
+    dot(c, '#ffdc8c', bx, by + 12, 3);
+  } else {
+    dot(c, ROBOT.belly, bx, by + 4, 13);
+    dot(c, ROBOT.dark, bx - 14, by - 18, 2); dot(c, ROBOT.dark, bx + 14, by - 18, 2);
+  }
+  isHero ? faceHero(c, hc[0], hc[1], fc, t, st, hp)
+         : faceRobot(c, hc[0], hc[1], fc, t, st, hp, blocking);
+
+  const sh = [bx + fc * 14, by - 16];
+  const fistR = heavy ? 9 : 7;
+  if (st === ACTIVE && isThrow) {
+    for (const fy of [-78, -66]) {
+      cap(c, limb, sh[0], sh[1], bx + fc*44, TC.SY + fy, 6);
+      dot(c, pal.fist, bx + fc*44, TC.SY + fy, 7);
+    }
+  } else if (st === ACTIVE) {
+    const reach = heavy ? 52 : 44, ftx = bx + fc * reach, fty = TC.SY - 80;
+    cap(c, limb, sh[0], sh[1], ftx, fty, 7); dot(c, pal.fist, ftx, fty, fistR);
+    c.strokeStyle = '#c8c8d7'; c.lineWidth = 2;
+    for (const ly of [-8, 0, 8]) {
+      c.beginPath(); c.moveTo(ftx + fc*14, fty + ly); c.lineTo(ftx + fc*30, fty + ly); c.stroke();
+    }
+  } else if (st === STARTUP) {
+    const ft = [bx + fc*4, TC.SY - 96];
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], fistR);
+  } else if (st === RECOVERY) {
+    const ft = [bx + fc*34, TC.SY - 66];
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], fistR);
+    c.fillStyle = '#96d2ff';
+    dot(c, '#96d2ff', hc[0] + fc*20, hc[1] - 8, 4);
+    c.beginPath(); c.moveTo(hc[0] + fc*20 - 4, hc[1] - 9);
+    c.lineTo(hc[0] + fc*20 + 4, hc[1] - 9); c.lineTo(hc[0] + fc*20, hc[1] - 17);
+    c.closePath(); c.fill();
+  } else if (blocking || st === BLOCKSTUN) {
+    for (const fy of [-84, -62]) {
+      cap(c, limb, bx + fc*10, by - 20, bx + fc*18, TC.SY + fy, 6);
+    }
+    c.strokeStyle = 'rgba(90,220,230,.65)'; c.lineWidth = 4;
+    c.beginPath();
+    if (fc > 0) c.arc(bx + fc*20, TC.SY - 50, 48, -1.1, 1.1);
+    else c.arc(bx + fc*20, TC.SY - 50, 48, Math.PI - 1.1, Math.PI + 1.1);
+    c.stroke();
+    if (st === BLOCKSTUN) star(c, '#8ce6ff', bx + fc*34, TC.SY - 76, 9, 6);
+  } else if (st === HITSTUN) {
+    for (const [fy, dx2] of [[-92, -18], [-64, -12]]) {
+      cap(c, limb, sh[0], sh[1], bx + fc*dx2, TC.SY + fy, 6);
+    }
+    c.strokeStyle = '#ffc85a'; c.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      const sx2 = hc[0] + fc*(14 + k*7)*Math.cos(2.2), sy2 = hc[1] - 10 - k*6;
+      c.beginPath(); c.moveTo(sx2, sy2); c.lineTo(sx2 + fc*8, sy2 - 6); c.stroke();
+    }
+  } else {
+    const ft = [bx + fc*12, TC.SY - 88];
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], 7);
+  }
+  if (st === ACTIVE) {
+    c.strokeStyle = '#fff'; c.lineWidth = 3;
+    rr(c, bx - 27, TC.SY - 132, 54, 130, 14); c.stroke();
+  }
+}
+
+function outcomeText(o, n1, n2) {
+  const r = o.result;
+  if (r === 'win0') return `K.O. ${n1} 胜利!`;
+  if (r === 'win1') return `K.O. ${n2} 胜利!`;
+  if (r === 'timeout0') return `时间到 · 判 ${n1} 胜`;
+  if (r === 'timeout1') return `时间到 · 判 ${n2} 胜`;
+  return '平局';
+}
+
+function rpDraw() {
+  const d = RP.data; if (!d) return;
+  const i = RP.idx, f = d.frames[i], t = i;
+  const c = rpCtx, N = d.frames.length;
+  c.fillStyle = '#101018'; c.fillRect(0, 0, TC.W, TC.H);
+  c.strokeStyle = '#464655'; c.lineWidth = 4;
+  c.beginPath(); c.moveTo(TC.PX0 - 30, TC.SY); c.lineTo(TC.PX1 + 30, TC.SY); c.stroke();
+
+  const n1 = d.players[0].name, n2 = d.players[1].name;
+  for (const [side, x0, name, col] of [[0, 60, n1, '#78c86e'], [1, TC.W - 400, n2, '#c85050']]) {
+    const hp = side ? f[3] : f[2], frac = hp / 100;
+    c.fillStyle = '#3c3c46'; rr(c, x0, 40, 340, 20, 6); c.fill();
+    c.fillStyle = col;
+    const bw = 340 * frac;
+    rr(c, side ? x0 + 340 - bw : x0, 40, Math.max(bw, 0.1), 20, 6); c.fill();
+    c.fillStyle = '#e8ecf3'; c.font = 'bold 14px -apple-system,"PingFang SC",sans-serif';
+    c.textAlign = side ? 'right' : 'left';
+    c.fillText(`${name}  ${hp}/100`, side ? x0 + 340 : x0, 74);
+    c.textAlign = 'left';
+  }
+  c.fillStyle = '#ffc83c'; c.font = 'bold 24px -apple-system,sans-serif'; c.textAlign = 'center';
+  c.fillText(`${Math.max(0, (d.max_ticks - i) / 60).toFixed(1)}s`, TC.W/2, 64);
+  c.textAlign = 'left';
+
+  const act = d.actions[i] || [0, 0];
+  for (const side of [0, 1]) {
+    const fr = side ? [f[1], f[3], f[5], f[7]] : [f[0], f[2], f[4], f[6]];
+    const dx = RP.prevX[side] === null ? 0 : fr[0] - RP.prevX[side];
+    const heavy = side ? act[1] === 3 : act[0] === 3;
+    const isThrow = side ? act[1] === 5 : act[0] === 5;
+    drawFighter(c, side, fr, dx, t, heavy, isThrow);
+  }
+  RP.prevX = [f[0], f[1]];
+
+  tag(c, `🧑 ${n1}`, TC.PX0 + f[0]*(TC.PX1-TC.PX0), TC.SY - 156);
+  tag(c, `${n2} 🤖`, TC.PX0 + f[1]*(TC.PX1-TC.PX0), TC.SY - 156);
+
+  const mx0 = 220, mx1 = TC.W - 220, my = TC.H - 88;
+  c.fillStyle = '#3c3c46'; rr(c, mx0, my, mx1 - mx0, 10, 5); c.fill();
+  const dd = f[1] - f[0];
+  dot(c, '#ffc83c', mx0 + Math.min(dd, 1)*(mx1-mx0), my + 5, 8);
+  c.font = '12px -apple-system,"PingFang SC",sans-serif'; c.textAlign = 'center';
+  for (const [r2, col, nm] of [[0.07, '#aa6cdc', '投0.07'], [0.13, '#ffd250', '轻0.13'], [0.19, '#eb5050', '重0.19']]) {
+    const lx = mx0 + r2*(mx1-mx0);
+    c.strokeStyle = col; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(lx, my - 8); c.lineTo(lx, my + 18); c.stroke();
+    c.fillStyle = col; c.fillText(nm, lx, my + 32);
+  }
+  c.textAlign = 'left';
+
+  for (const e of RP.fx) {
+    e.ttl--;
+    const fx0 = TC.PX0 + (side_x(e.side, f)) * (TC.PX1-TC.PX0);
+    if (e.kind === 'dmg') {
+      e.y -= 0.8;
+      c.fillStyle = '#ff9a50'; c.font = 'bold 17px -apple-system,sans-serif';
+      c.textAlign = 'center';
+      c.fillText(`-${e.val}`, fx0, e.y); c.textAlign = 'left';
+    } else if (e.kind === 'star') {
+      star(c, '#ffdc5a', fx0 + (e.side ? -26 : 26), TC.SY - 84, 13, 8);
+    } else if (e.kind === 'block') {
+      star(c, '#8ce6ff', fx0 + (e.side ? -30 : 30), TC.SY - 76, 9, 6);
+    }
+  }
+  RP.fx = RP.fx.filter(e => e.ttl > 0);
+
+  if (i >= N - 1) {
+    const txt = outcomeText(d.outcome, n1, n2);
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(TC.W/2 - 190, 96, 380, 54);
+    c.fillStyle = txt.indexOf('平') >= 0 ? '#e8ecf3' : '#ffd166';
+    c.font = 'bold 28px -apple-system,"PingFang SC",sans-serif'; c.textAlign = 'center';
+    c.fillText(txt, TC.W/2, 132); c.textAlign = 'left';
+  }
+  $('th-info').textContent = `${i+1}/${N} 帧 · 第 ${Math.floor(i/60)+1} 秒`;
+}
+function side_x(side, f) { return side ? f[1] : f[0]; }
+
+function rpAdvance(from, to) {
+  const d = RP.data;
+  for (let k = from + 1; k <= to; k++) {
+    const f = d.frames[k], p = d.frames[k - 1];
+    if (f[2] < p[2]) RP.fx.push({kind:'dmg', side:0, val:p[2]-f[2], y:TC.SY-150, ttl:45});
+    if (f[3] < p[3]) RP.fx.push({kind:'dmg', side:1, val:p[3]-f[3], y:TC.SY-150, ttl:45});
+    if (f[4] === HITSTUN && p[4] !== HITSTUN) RP.fx.push({kind:'star', side:0, ttl:12});
+    if (f[5] === HITSTUN && p[5] !== HITSTUN) RP.fx.push({kind:'star', side:1, ttl:12});
+    if (f[4] === BLOCKSTUN && p[4] !== BLOCKSTUN) RP.fx.push({kind:'block', side:0, ttl:10});
+    if (f[5] === BLOCKSTUN && p[5] !== BLOCKSTUN) RP.fx.push({kind:'block', side:1, ttl:10});
+  }
+  RP.idx = to;
+  $('th-seek').value = to;
+}
+
+function rpLoop(ts) {
+  if (!RP.open) return;
+  const dt = Math.min(0.1, (ts - RP.last) / 1000 || 0);
+  RP.last = ts;
+  if (RP.playing) {
+    RP.acc += dt * RP.tps;
+    const adv = Math.floor(RP.acc);
+    if (adv > 0) {
+      RP.acc -= adv;
+      const to = Math.min(RP.idx + adv, RP.data.frames.length - 1);
+      if (to > RP.idx) rpAdvance(RP.idx, to);
+      if (to >= RP.data.frames.length - 1) { RP.playing = false; $('th-play').textContent = '⏵ 重播'; }
+    }
+  }
+  rpDraw();
+  requestAnimationFrame(rpLoop);
+}
+
+async function openReplay(file) {
+  $('theater').classList.add('on'); RP.open = true;
+  $('th-title').textContent = '🎬 读取回放中…';
+  try {
+    const d = await api(`/api/replay_frames/${file}`);
+    RP.data = d; RP.idx = 0; RP.acc = 0; RP.fx = []; RP.prevX = [null, null];
+    RP.playing = true; RP.last = performance.now();
+    $('th-title').textContent = `🎬 ${d.players[0].name} vs ${d.players[1].name} · seed ${d.seed}`;
+    $('th-seek').max = d.frames.length - 1; $('th-seek').value = 0;
+    $('th-play').textContent = '⏸ 暂停';
+    requestAnimationFrame(rpLoop);
+  } catch (e) {
+    $('th-title').textContent = '🎬 读取失败: ' + e.message;
+  }
+}
+function closeReplay() {
+  RP.open = false; RP.playing = false;
+  $('theater').classList.remove('on');
+}
+$('th-close').onclick = closeReplay;
+$('theater').addEventListener('click', e => { if (e.target === $('theater')) closeReplay(); });
+$('th-play').onclick = () => {
+  if (!RP.data) return;
+  if (!RP.playing && RP.idx >= RP.data.frames.length - 1) {
+    RP.idx = 0; RP.fx = []; RP.prevX = [null, null]; $('th-seek').value = 0;
+  }
+  RP.playing = !RP.playing;
+  $('th-play').textContent = RP.playing ? '⏸ 暂停' : '⏵ 播放';
+};
+$('th-speed').onchange = e => RP.tps = +e.target.value;
+$('th-seek').oninput = e => {
+  if (!RP.data) return;
+  RP.playing = false; $('th-play').textContent = '⏵ 播放';
+  RP.idx = +e.target.value; RP.fx = [];
+};
+document.addEventListener('keydown', e => {
+  if (!RP.open || !RP.data) return;
+  if (e.code === 'Space') { e.preventDefault(); $('th-play').click(); }
+  if (e.code === 'ArrowRight') { e.preventDefault();
+    rpAdvance(RP.idx, Math.min(RP.idx + 1, RP.data.frames.length - 1)); }
+  if (e.code === 'ArrowLeft') { e.preventDefault();
+    RP.idx = Math.max(0, RP.idx - 1); $('th-seek').value = RP.idx; }
+  if (e.code === 'Escape') closeReplay();
 });
 
 loadAll();

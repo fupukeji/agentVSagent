@@ -30,8 +30,8 @@ sys.path.insert(0, str(ROOT))
 from agents import load_agent          # noqa: E402
 from arena import play_one             # noqa: E402
 from elo import tournament             # noqa: E402
-from fighting_env import load_rules    # noqa: E402
-from replay import rules_digest        # noqa: E402
+from fighting_env import FightingEnv, load_rules  # noqa: E402
+from replay import load_replay as load_replay_json, rules_digest  # noqa: E402
 from score import evaluate             # noqa: E402
 
 DATA = ROOT / "data"
@@ -172,6 +172,33 @@ def api_replay(name: str):
     if not p.exists():
         raise HTTPException(404, "回放不存在")
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+@app.get("/api/replay_frames/{name}")
+def api_replay_frames(name: str):
+    """把回放展开成逐帧状态轨（服务端确定性重放导出，供官网动画播放器）。
+    frames: [x1, x2, hp1, hp2, state1, state2, blocking1, blocking2] / 帧"""
+    if not re.fullmatch(r"[\w.-]+\.json", name):
+        raise HTTPException(400, "非法文件名")
+    p = REPLAYS / name
+    if not p.exists():
+        raise HTTPException(404, "回放不存在")
+    data = load_replay_json(p)
+    rules = load_rules(None)
+    if rules_digest(rules.raw) != data["rules"].get("sha256"):
+        raise HTTPException(409, "规则包已变更，该回放对当前规则无效")
+    env = FightingEnv(rules=rules.raw, max_ticks=int(data["max_ticks"]))
+    env.reset(seed=int(data["seed"]))
+    frames = []
+    for a1, a2 in data["ticks"]:
+        env.step_both(int(a1), int(a2))
+        frames.append([round(env.p1.x, 4), round(env.p2.x, 4),
+                       int(env.p1.hp), int(env.p2.hp),
+                       env.p1.state, env.p2.state,
+                       int(env.p1.blocking), int(env.p2.blocking)])
+    return {"players": data["players"], "seed": data["seed"],
+            "max_ticks": data["max_ticks"], "outcome": data["outcome"],
+            "actions": data["ticks"], "frames": frames}
 
 
 @app.post("/api/match")
