@@ -177,7 +177,7 @@ fighting-rl/
 
 ---
 
-### Task 3：回放格式与复放（replay.py + play.py 扩展）—— P0，半天
+### Task 3：回放格式与复放（replay.py + play.py 扩展）—— P0，半天 ✅
 
 **目标**：确定性格式：**种子 + 双方动作序列 = 完整复现**。校验器保证「平台产出的回放不可伪造」的最弱保证（重放一致性）。
 
@@ -207,9 +207,10 @@ fighting-rl/
 4. `arena.py` 写出的每个回放都自动 `verify_replay` 自检（成本可忽略），失败则报错。
 
 **验收**：
-- [ ] `python play.py --replay replays/某个文件.json` 能完整复放并正确显示结果。
-- [ ] `python replay.py verify replays/某个文件.json` 输出 `OK`。
-- [ ] 手工篡改回放中一个动作后 verify 返回不一致（负例测试）。
+- [x] `python play.py --replay replays/某个文件.json` 能完整复放并正确显示结果。
+- [x] `python replay.py verify replays/某个文件.json` 输出 `OK`。
+- [x] 手工篡改回放中一个动作后 verify 返回不一致（负例测试）。
+  （实现加强：回放含逐帧 hp_track，verify 逐帧比对，抓取不影响结局的单点篡改；硬直中被忽略的指令属语义等价，仍判一致）
 
 ---
 

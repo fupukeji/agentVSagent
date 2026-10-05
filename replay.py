@@ -43,8 +43,8 @@ def load_replay(path: str) -> dict:
     return data
 
 
-def replay_game(data: dict, rules_path=None) -> dict:
-    """按回放数据在无头环境重放整局，返回重放得到的 outcome。"""
+def replay_game(data: dict, rules_path=None):
+    """按回放数据在无头环境重放整局，返回 (outcome, 逐帧HP轨迹)。"""
     rules = load_rules(rules_path)  # None → rules/default.json
     digest = rules_digest(rules.raw)
     if digest != data["rules"].get("sha256"):
@@ -53,18 +53,30 @@ def replay_game(data: dict, rules_path=None) -> dict:
             f"vs 当前 {digest[:12]}…（规则已被修改，回放对当前规则无效）")
     env = FightingEnv(rules=rules.raw, max_ticks=int(data["max_ticks"]))
     env.reset(seed=int(data["seed"]))
+    hp_track = []
     for a1, a2 in data["ticks"]:
         env.step_both(int(a1), int(a2))
-    return env.outcome()
+        hp_track.append([int(env.p1.hp), int(env.p2.hp)])
+    return env.outcome(), hp_track
 
 
 def verify_replay(path: str, rules_path=None):
-    """校验回放：重放一致 → (True, 'OK')；否则 (False, 差异说明)。"""
+    """校验回放：重放一致 → (True, 'OK')；否则 (False, 差异说明)。
+
+    比对两级：逐帧 HP 轨迹（hp_track，若存在）+ 终局 outcome。
+    注：硬直中被忽略的指令不影响游戏状态，重放仍算一致（语义等价）。"""
     try:
         data = load_replay(path)
-        got = replay_game(data, rules_path=rules_path)
+        got, hp_track = replay_game(data, rules_path=rules_path)
     except Exception as e:  # noqa: BLE001
         return False, f"无法重放: {e}"
+    want_track = data.get("hp_track")
+    if want_track is not None and want_track != hp_track:
+        for t, (a, b) in enumerate(zip(want_track, hp_track)):
+            if a != b:
+                return False, f"不一致 → 第{t + 1}帧 HP: 回放记录 {a} vs 重放结果 {b}"
+        return False, (f"不一致 → HP 轨迹长度: 回放记录 {len(want_track)} vs "
+                       f"重放结果 {len(hp_track)}")
     want = data["outcome"]
     if got != want:
         diffs = []

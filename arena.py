@@ -39,6 +39,7 @@ def play_one(agent1, agent2, seed, rules=None, out_dir=None):
     agent2.reset(seed + 10007, side=1)
 
     ticks = []
+    hp_track = []
     ret1 = 0.0
     done = False
     while not done:
@@ -46,6 +47,7 @@ def play_one(agent1, agent2, seed, rules=None, out_dir=None):
         a2 = int(agent2.act(env.obs_for(1)))
         _, r, term, trunc, _ = env.step_both(a1, a2)
         ticks.append([a1, a2])
+        hp_track.append([int(env.p1.hp), int(env.p2.hp)])
         ret1 += float(r)
         done = term or trunc
 
@@ -64,6 +66,7 @@ def play_one(agent1, agent2, seed, rules=None, out_dir=None):
              "meta": agent2.info()},
         ],
         "ticks": ticks,
+        "hp_track": hp_track,   # 逐帧 HP 轨迹：verify 逐帧比对，防篡改
         "outcome": outcome,
     }
 

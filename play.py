@@ -1,6 +1,7 @@
 """
 观看 AI 打架：PPO AI（左） vs 立回机器人（右）
 运行：.venv/bin/python play.py [模型名] [场数]
+复放：.venv/bin/python play.py --replay replays/<回放文件>.json
 按键：空格 暂停 | +/- 调速（2~60 tick/秒，60=真实速度）| ESC 退出
 """
 
@@ -12,6 +13,7 @@ from fighting_env import (
     FightingEnv, MOVES, STATE_NAMES,
     S_IDLE, S_STARTUP, S_ACTIVE, S_RECOVERY, S_BLOCKSTUN, S_HITSTUN,
 )
+from replay import load_replay, verify_replay
 
 W, H = 1000, 520
 STAGE_Y = 350
@@ -133,12 +135,101 @@ def draw(screen, env, font, big, result, tps, paused):
         screen.blit(surf, (W // 2 - surf.get_width() // 2, 110))
 
 
+def _event_loop(state):
+    """处理窗口事件；返回 False 表示退出程序。state: {tps, paused}"""
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            return False
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                return False
+            if event.key == pygame.K_SPACE:
+                state["paused"] = not state["paused"]
+            elif event.key in (pygame.K_EQUALS, pygame.K_KP_PLUS):
+                state["tps"] = min(60, state["tps"] + 4)
+            elif event.key == pygame.K_MINUS:
+                state["tps"] = max(2, state["tps"] - 4)
+    return True
+
+
+def outcome_text(o, p1n, p2n):
+    """outcome 字典 → 结果展示文案。"""
+    r = o["result"]
+    if r == "win0":
+        return f"K.O. {p1n} 胜利!"
+    if r == "win1":
+        return f"K.O. {p2n} 胜利!"
+    if r == "timeout0":
+        return f"时间到 · 判 {p1n} 胜"
+    if r == "timeout1":
+        return f"时间到 · 判 {p2n} 胜"
+    return "平局"
+
+
+def run_replay(path):
+    """复放模式：按回放 ticks 逐帧驱动 step_both 渲染，不加载模型。"""
+    if not path:
+        print("用法: python play.py --replay <回放文件>")
+        return 2
+    ok, msg = verify_replay(path)
+    if not ok:
+        print(f"回放校验未通过，拒绝复放：{msg}")
+        return 1
+    data = load_replay(path)
+    p1n, p2n = data["players"][0]["name"], data["players"][1]["name"]
+    o = data["outcome"]
+    print(f"复放: {p1n} vs {p2n} | seed {data['seed']} | "
+          f"{len(data['ticks'])}帧 | 记录结果 {o['result']}")
+
+    env = FightingEnv(max_ticks=data["max_ticks"])
+    env.p1.name, env.p2.name = p1n, p2n
+    env.reset(seed=data["seed"])
+
+    pygame.init()
+    screen = pygame.display.set_mode((W, H))
+    pygame.display.set_caption(f"立回斗士 — 回放模式：{p1n} vs {p2n}")
+    clock = pygame.time.Clock()
+    font, big = get_font(15), get_font(22, bold=True)
+    state = {"tps": 10, "paused": False}
+
+    ticks = iter(data["ticks"])
+    done, result, frame = False, None, 0
+    while not done or frame < 150:  # 结束后停 2.5 秒
+        step_every = max(1, round(FPS / state["tps"]))
+        if not _event_loop(state):
+            break
+        if not done and not state["paused"] and frame % step_every == 0:
+            pair = next(ticks, None)
+            if pair is not None:
+                env.step_both(int(pair[0]), int(pair[1]))
+            if pair is None or env.p1.hp <= 0 or env.p2.hp <= 0 \
+                    or env.t >= env.max_ticks:
+                done = True
+                result = outcome_text(env.outcome(), p1n, p2n)
+            frame = 0
+        frame += 1
+
+        draw(screen, env, font, big, result, state["tps"], state["paused"])
+        badge = font.render(
+            f"回放模式 | {p1n} vs {p2n} | seed {data['seed']}", True, GOLD)
+        screen.blit(badge, (W // 2 - badge.get_width() // 2, 8))
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    print(f"回放结束: {result}")
+    pygame.quit()
+    return 0
+
+
 def main():
-    model_path = sys.argv[1] if len(sys.argv) > 1 else "fighting_ppo"
-    episodes = int(sys.argv[2]) if len(sys.argv) > 2 else 3
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--replay":
+        return run_replay(argv[1] if len(argv) > 1 else None)
+    model_path = argv[0] if argv else "fighting_ppo"
+    episodes = int(argv[1]) if len(argv) > 1 else 3
 
     model = None
-    if os.path.exists(model_path):
+    if os.path.exists(model_path) or os.path.exists(model_path + ".zip"):
         from stable_baselines3 import PPO
         model = PPO.load(model_path)
         print(f"已加载模型 {model_path}")
@@ -152,27 +243,17 @@ def main():
     font, big = get_font(15), get_font(22, bold=True)
 
     env = FightingEnv()
-    tps, paused = 10, False
+    state = {"tps": 10, "paused": False}
 
     for ep in range(episodes):
         obs, _ = env.reset(seed=ep)
         done, result, frame = False, None, 0
         while not done or frame < 150:  # 结束后停 2.5 秒
-            step_every = max(1, round(FPS / tps))
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-                if event.type == pygame.KEYDOWN:
-                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                        pygame.quit()
-                        return
-                    if event.key == pygame.K_SPACE:
-                        paused = not paused
-                    elif event.key in (pygame.K_EQUALS, pygame.K_KP_PLUS):
-                        tps = min(60, tps + 4)
-                    elif event.key == pygame.K_MINUS:
-                        tps = max(2, tps - 4)
+            step_every = max(1, round(FPS / state["tps"]))
+            if not _event_loop(state):
+                pygame.quit()
+                return
+            paused = state["paused"]
 
             if not done and not paused and frame % step_every == 0:
                 if model is not None:
@@ -192,7 +273,7 @@ def main():
                 frame = 0
             frame += 1
 
-            draw(screen, env, font, big, result, tps, paused)
+            draw(screen, env, font, big, result, state["tps"], state["paused"])
             pygame.display.flip()
             clock.tick(FPS)
 
