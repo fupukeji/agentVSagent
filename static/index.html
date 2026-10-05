@@ -231,77 +231,80 @@
 
 <!-- ================= 竞技场 ================= -->
 <div class="view on" id="view-arena">
-  <div class="hero">
-    <h1>让AI替你上场打排位</h1>
-    <p>1D 极简格斗 · 立回（距离管控）× 打投择（猜拳环）· 无头确定性执行 · 回放防篡改</p>
-    <div class="loop">
-      <div class="step"><b>①</b>上传 Agent（.py / PPO / HTTP）</div><span class="arrow">→</span>
-      <div class="step"><b>②</b>试炼场热身</div><span class="arrow">→</span>
-      <div class="step"><b>③</b>隐藏池三维评分</div><span class="arrow">→</span>
-      <div class="step"><b>④</b>看回放找弱点</div><span class="arrow">→</span>
-      <div class="step"><b>⑤</b>Elo 上榜</div>
+  <!-- 紧凑横幅：参赛流程详情已移至「参赛教学」页，竞技场数据优先 -->
+  <div class="abar">
+    <div>
+      <div class="abt">让 AI 替你上场打排位</div>
+      <div class="abs">立回 × 打投择 · 服务端可信执行 · 回放防篡改</div>
+    </div>
+    <div class="abtns">
+      <button class="big" onclick="jumpToUpload()">📤 上传策略</button>
+      <button class="big alt" onclick="switchTab('learn')">⚡ 一键参赛</button>
+      <button class="big alt" onclick="playLatest()">🎬 看最近一场</button>
     </div>
   </div>
 
-  <section>
-    <h2>🏆 对战排行榜 <span class="hint" id="lb-updated"></span></h2>
-    <div id="leaderboard"><div class="loading"><span class="spin">⏳</span> 首次启动约 1 分钟：开幕锦标赛进行中，稍后自动刷新……</div></div>
-  </section>
-
-  <section>
-    <h2>🧑‍🤝‍🧑 选手风采 <span class="hint">胜率 65 + 速度 20 + 稳定性 15 = 100</span></h2>
-    <div class="cards" id="cards"></div>
-  </section>
-
-  <section class="cols">
-    <div>
-      <h2>⚔️ 最近对局</h2>
-      <div class="matches" id="matches"><div class="loading">暂无对局</div></div>
+  <div class="agrid">
+    <div class="amain">
+      <section>
+        <h2>🏆 对战排行榜 <span class="hint" id="lb-updated"></span></h2>
+        <div id="leaderboard"><div class="loading"><span class="spin">⏳</span> 首次启动约 1 分钟：开幕锦标赛进行中，稍后自动刷新……</div></div>
+      </section>
+      <section>
+        <h2>⚔️ 最近对局</h2>
+        <div class="matches" id="matches"><div class="loading">暂无对局——右侧演控台约一场</div></div>
+        <div class="mfoot" id="mpage"></div>
+      </section>
     </div>
-    <div>
-      <h2>🎛 演控台</h2>
-      <div class="panelbox">
-        <div class="pb">
-          <h3>约战一局（确定性种子，可仲裁重放）</h3>
-          <div class="row">
-            <select id="m-a"></select>
-            <span class="vs">vs</span>
-            <select id="m-b"></select>
-            <input type="number" id="m-seed" value="42" style="width:74px" title="种子">
-            <button class="big" id="btn-match">开赛</button>
+
+    <div class="aside">
+      <section>
+        <h2>🎛 演控台</h2>
+        <div class="panelbox">
+          <div class="pb">
+            <h3>约战一局 <span style="color:var(--sub);font-weight:400;font-size:11px">同种子可仲裁重放</span></h3>
+            <div class="row">
+              <select id="m-a"></select>
+              <span class="vs">vs</span>
+              <select id="m-b"></select>
+              <input type="number" id="m-seed" value="42" style="width:64px" title="种子">
+              <button class="big" id="btn-match">开赛</button>
+            </div>
           </div>
+          <div class="pb">
+            <h3>隐藏池评分 <span style="color:var(--sub);font-weight:400;font-size:11px">8 对手 × 3 场</span></h3>
+            <div class="row">
+              <select id="sc-agent"></select>
+              <button class="big alt" id="btn-score">评分</button>
+            </div>
+          </div>
+          <div class="pb">
+            <h3>重跑锦标赛 <span style="color:var(--sub);font-weight:400;font-size:11px">循环赛·每对 6 局</span></h3>
+            <div class="row"><button class="big alt" id="btn-tour">开赛</button></div>
+          </div>
+          <div class="pb">
+            <h3>📤 上传智能体 <span style="color:var(--sub);font-weight:400;font-size:11px">.py，含 class Agent</span></h3>
+            <div class="row" id="drop-row">
+              <label class="filebtn" for="up-file" id="drop">📄 选择 / 拖入</label>
+              <input type="text" id="up-name" placeholder="选手名" style="flex:1;min-width:76px">
+              <button class="big alt" id="up-skin" title="定制形象（也可由 AI 用 join.py --skin）">🎨</button>
+              <button class="big" id="btn-upload">注册</button>
+              <input type="file" id="up-file" accept=".py" hidden>
+            </div>
+            <div class="status" id="up-file-note" style="min-height:13px"></div>
+            <div class="status" id="up-skin-note" style="min-height:13px"></div>
+          </div>
+          <div class="status" id="status"></div>
+          <div style="font-size:12px;color:var(--sub)">第一次参赛？
+            <a href="javascript:switchTab('learn')">去「参赛教学」拿模板，10 行代码登场 →</a></div>
         </div>
-        <div class="pb">
-          <h3>隐藏池排位评分（8 风格化对手 × 3 局）</h3>
-          <div class="row">
-            <select id="sc-agent"></select>
-            <button class="big alt" id="btn-score">评分</button>
-          </div>
-        </div>
-        <div class="pb">
-          <h3>重跑锦标赛（全体循环赛）</h3>
-          <div class="row"><button class="big alt" id="btn-tour">开赛（每对 6 局）</button></div>
-        </div>
-        <div class="pb">
-          <h3>上传你的智能体</h3>
-          <div class="row">
-            <div class="upload-box" id="drop" style="flex:1">选择或拖入 .py 策略文件（含 class Agent）</div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <input type="text" id="up-name" placeholder="选手名（留空取文件名）" style="flex:1">
-            <button class="big alt" id="up-skin" title="形象也可由你的 AI 用 join.py --skin 定制">🎨 定制形象</button>
-            <button class="big" id="btn-upload">注册参赛</button>
-            <input type="file" id="up-file" accept=".py" hidden>
-          </div>
-          <div class="status" id="up-skin-note"></div>
-          <div class="callout" style="margin-bottom:0;margin-top:12px">
-            第一次参赛？先去 <b>「参赛教学」</b>页下载官方模板，10 行代码即可登场。
-          </div>
-        </div>
-        <div class="status" id="status"></div>
-      </div>
+      </section>
+      <section>
+        <h2>🧑‍🤝‍🧑 选手墙 <span class="hint">综合分 = 胜率65+速度20+稳定15</span></h2>
+        <div class="wall" id="wall"></div>
+      </section>
     </div>
-  </section>
+  </div>
 </div>
 
 <!-- ================= 规则说明 ================= -->
@@ -623,6 +626,7 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
     <canvas id="th-canvas" width="1000" height="520"></canvas>
     <div class="tctrl">
       <button class="big" id="th-play">⏸ 暂停</button>
+      <button class="big alt" id="th-sound" title="音效开关">🔊</button>
       <select id="th-speed">
         <option value="6">慢速 6 t/s</option>
         <option value="15" selected>标准 15 t/s</option>
@@ -1007,7 +1011,64 @@ const ROBOT = { metal:'#acc4ce', dark:'#607482', visor:'#18222c', eye:'#5ae6f0',
 const IDLE=0, STARTUP=1, ACTIVE=2, RECOVERY=3, BLOCKSTUN=4, HITSTUN=5;
 const rpCtx = $('th-canvas').getContext('2d');
 const RP = { open:false, data:null, idx:0, playing:false, tps:15, last:0, acc:0,
-             fx:[], prevX:[null,null], _throw:[false,false] };
+             fx:[], prevX:[null,null], _throw:[false,false],
+             shake:0, hitstop:0, flash:0, mute:false, koIdx:-1, bellPlayed:false,
+             combo:[{count:0,last:-999},{count:0,last:-999}], whoosh:[-99,-99] };
+
+/* ---------- 音效引擎（Web Audio 程序化合成，无音频文件） ---------- */
+let AC = null;
+function ac() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(o) {
+  if (RP.mute) return;
+  try {
+    const a = ac(), t = a.currentTime + (o.delay || 0), dur = o.dur || 0.1;
+    const osc = a.createOscillator(), g = a.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.f || 440, t);
+    if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, t + dur);
+    g.gain.setValueAtTime(o.v || 0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(g).connect(a.destination);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  } catch (e) {}
+}
+function noiseBurst(o) {
+  if (RP.mute) return;
+  try {
+    const a = ac(), t = a.currentTime + (o.delay || 0), dur = o.dur || 0.1;
+    const len = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf;
+    const flt = a.createBiquadFilter(); flt.type = o.hp ? 'highpass' : 'lowpass';
+    flt.frequency.setValueAtTime(o.ff || 800, t);
+    if (o.ff2) flt.frequency.exponentialRampToValueAtTime(o.ff2, t + dur);
+    const g = a.createGain();
+    g.gain.setValueAtTime(o.v || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(flt).connect(g).connect(a.destination);
+    src.start(t); src.stop(t + dur);
+  } catch (e) {}
+}
+const SFX = {
+  light()  { tone({f:190, f2:70, dur:0.09, v:0.35}); noiseBurst({ff:1400, ff2:300, dur:0.06, v:0.15}); },
+  heavy()  { tone({f:130, f2:36, dur:0.28, v:0.5, type:'square'}); tone({f:70, f2:30, dur:0.3, v:0.4});
+             noiseBurst({ff:900, ff2:150, dur:0.2, v:0.3}); },
+  block()  { tone({f:1250, f2:900, dur:0.06, v:0.22, type:'square'}); tone({f:1900, dur:0.04, v:0.12}); },
+  whiff()  { noiseBurst({ff:600, ff2:2400, hp:1, dur:0.1, v:0.08}); },
+  throwS() { tone({f:330, f2:90, dur:0.22, v:0.35, type:'triangle'}); noiseBurst({ff:500, ff2:200, dur:0.15, v:0.15, delay:0.02}); },
+  ko()     { noiseBurst({ff:2000, ff2:100, dur:0.5, v:0.5});
+             tone({f:55, f2:26, dur:0.7, v:0.55, type:'square'}); tone({f:110, f2:40, dur:0.5, v:0.3});
+             tone({f:660, dur:0.12, v:0.2, delay:0.1}); tone({f:880, dur:0.18, v:0.2, delay:0.24}); },
+  bell()   { tone({f:880, dur:0.35, v:0.25}); tone({f:1320, dur:0.4, v:0.15, delay:0.05}); },
+  tick()   { tone({f:1050, dur:0.04, v:0.15, type:'square'}); },
+  combo(n) { tone({f:420 + Math.min(n, 8) * 90, dur:0.09, v:0.25, type:'triangle'}); },
+};
 
 function rr(c, x, y, w, h, r) {  // roundRect 兼容
   c.beginPath(); c.moveTo(x+r, y); c.arcTo(x+w, y, x+w, y+h, r);
@@ -1233,7 +1294,11 @@ function rpDraw() {
   const d = RP.data; if (!d) return;
   const i = RP.idx, f = d.frames[i], t = i;
   const c = rpCtx, N = d.frames.length;
-  c.fillStyle = '#101018'; c.fillRect(0, 0, TC.W, TC.H);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#101018'; c.fillRect(-30, -20, TC.W + 60, TC.H + 40);
+  c.save();
+  if (RP.shake > 0.3)
+    c.translate((Math.random() - 0.5) * RP.shake, (Math.random() - 0.5) * RP.shake * 0.6);
   c.strokeStyle = '#464655'; c.lineWidth = 4;
   c.beginPath(); c.moveTo(TC.PX0 - 30, TC.SY); c.lineTo(TC.PX1 + 30, TC.SY); c.stroke();
 
@@ -1249,8 +1314,11 @@ function rpDraw() {
     c.fillText(`${name}  ${hp}/100`, side ? x0 + 340 : x0, 74);
     c.textAlign = 'left';
   }
-  c.fillStyle = '#ffc83c'; c.font = 'bold 24px -apple-system,sans-serif'; c.textAlign = 'center';
-  c.fillText(`${Math.max(0, (d.max_ticks - i) / 60).toFixed(1)}s`, TC.W/2, 64);
+  // 计时（最后 5 秒变红脉冲）
+  const remT = Math.max(0, (d.max_ticks - i) / 60);
+  c.fillStyle = remT <= 5 ? (Math.floor(t / 8) % 2 ? '#ff6b6b' : '#ffc83c') : '#ffc83c';
+  c.font = 'bold 24px -apple-system,sans-serif'; c.textAlign = 'center';
+  c.fillText(`${remT.toFixed(1)}s`, TC.W/2, 64);
   c.textAlign = 'left';
 
   const act = d.actions[i] || [0, 0];
@@ -1287,24 +1355,79 @@ function rpDraw() {
     const fx0 = TC.PX0 + (side_x(e.side, f)) * (TC.PX1-TC.PX0);
     if (e.kind === 'dmg') {
       e.y -= 0.8;
-      c.fillStyle = '#ff9a50'; c.font = 'bold 17px -apple-system,sans-serif';
+      const big = e.val >= 14;
+      c.font = `bold ${big ? 21 : 16}px -apple-system,sans-serif`;
+      c.fillStyle = big ? '#ff5a3c' : '#ff9a50';
       c.textAlign = 'center';
       c.fillText(`-${e.val}`, fx0, e.y); c.textAlign = 'left';
     } else if (e.kind === 'star') {
       star(c, '#ffdc5a', fx0 + (e.side ? -26 : 26), TC.SY - 84, 13, 8);
     } else if (e.kind === 'block') {
       star(c, '#8ce6ff', fx0 + (e.side ? -30 : 30), TC.SY - 76, 9, 6);
+    } else if (e.kind === 'spark') {
+      e.x += e.vx; e.y += e.vy; e.vy += 0.22;
+      c.fillStyle = e.col;
+      c.fillRect(e.x - 1.5, e.y - 1.5, 3, 3);
+    } else if (e.kind === 'ring') {
+      e.r += e.vr;
+      c.strokeStyle = e.col; c.globalAlpha = Math.max(0, e.ttl / 16); c.lineWidth = 3;
+      c.beginPath(); c.arc(e.x, e.y, e.r, 0, 7); c.stroke();
+      c.globalAlpha = 1;
+    } else if (e.kind === 'combo') {
+      const a2 = Math.min(1, e.ttl / 12);
+      c.globalAlpha = a2;
+      c.font = 'italic bold 26px -apple-system,sans-serif';
+      c.fillStyle = '#ffd166'; c.textAlign = 'center';
+      c.strokeStyle = '#5a3c14'; c.lineWidth = 4;
+      c.strokeText(`${e.n} HIT!`, fx0, 168);
+      c.fillText(`${e.n} HIT!`, fx0, 168);
+      c.textAlign = 'left'; c.globalAlpha = 1;
+    } else if (e.kind === 'confetti') {
+      e.x += e.vx; e.y += e.vy; e.vx += Math.sin(e.y * 0.05) * 0.06;
+      c.fillStyle = e.col;
+      c.save(); c.translate(e.x, e.y); c.rotate(e.y * 0.05);
+      c.fillRect(-3, -1.5, 6, 3); c.restore();
     }
   }
   RP.fx = RP.fx.filter(e => e.ttl > 0);
 
+  // 残血警报：红色暗角脉冲
+  if (Math.min(f[2], f[3]) > 0 && Math.min(f[2], f[3]) < 30) {
+    const g = c.createRadialGradient(TC.W/2, TC.H/2, TC.H*0.35, TC.W/2, TC.H/2, TC.H*0.75);
+    g.addColorStop(0, 'rgba(255,40,40,0)');
+    g.addColorStop(1, `rgba(255,40,40,${0.28 + 0.14*Math.sin(t*0.3)})`);
+    c.fillStyle = g; c.fillRect(0, 0, TC.W, TC.H);
+  }
+  // K.O. 白闪
+  if (RP.flash > 0) {
+    c.fillStyle = `rgba(255,255,255,${Math.min(0.85, RP.flash)})`;
+    c.fillRect(0, 0, TC.W, TC.H);
+  }
+  // 开场 FIGHT!
+  if (i < 40 && RP.koIdx < 0) {
+    const sc = i < 12 ? 0.6 + i * 0.05 : 1.05;
+    c.save(); c.translate(TC.W/2, 200); c.scale(sc, sc);
+    c.font = 'italic bold 54px -apple-system,sans-serif';
+    c.textAlign = 'center';
+    c.strokeStyle = '#5a2c0f'; c.lineWidth = 8;
+    c.globalAlpha = i > 30 ? (40 - i) / 10 : 1;
+    c.strokeText('FIGHT!', 0, 0);
+    c.fillStyle = '#ff7a36'; c.fillText('FIGHT!', 0, 0);
+    c.restore(); c.globalAlpha = 1; c.textAlign = 'left';
+  }
+
   if (i >= N - 1) {
     const txt = outcomeText(d.outcome, n1, n2);
-    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(TC.W/2 - 190, 96, 380, 54);
-    c.fillStyle = txt.indexOf('平') >= 0 ? '#e8ecf3' : '#ffd166';
+    const koZoom = RP.koIdx >= 0 ? Math.min(1.25, 0.5 + (i - RP.koIdx + 1) * 0.08) : 1;
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(TC.W/2 - 210, 92, 420, 62);
+    c.save(); c.translate(TC.W/2, 132); c.scale(koZoom, koZoom);
+    c.fillStyle = txt.indexOf('K.O.') >= 0 ? '#ffd166' : txt.indexOf('平') >= 0 ? '#e8ecf3' : '#5ad7e6';
+    c.shadowColor = '#ff7a36'; c.shadowBlur = txt.indexOf('K.O.') >= 0 ? 24 : 0;
     c.font = 'bold 28px -apple-system,"PingFang SC",sans-serif'; c.textAlign = 'center';
-    c.fillText(txt, TC.W/2, 132); c.textAlign = 'left';
+    c.fillText(txt, 0, 0);
+    c.restore(); c.shadowBlur = 0; c.textAlign = 'left';
   }
+  c.restore();
   $('th-info').textContent = `${i+1}/${N} 帧 · 第 ${Math.floor(i/60)+1} 秒`;
 }
 function side_x(side, f) { return side ? f[1] : f[0]; }
@@ -1406,14 +1529,57 @@ function drawPortrait(cv, skin, heroDefault) {
 
 function rpAdvance(from, to) {
   const d = RP.data;
+  const X = (s, fr) => TC.PX0 + (s ? fr[1] : fr[0]) * (TC.PX1 - TC.PX0);
   for (let k = from + 1; k <= to; k++) {
     const f = d.frames[k], p = d.frames[k - 1];
-    if (f[2] < p[2]) RP.fx.push({kind:'dmg', side:0, val:p[2]-f[2], y:TC.SY-150, ttl:45});
-    if (f[3] < p[3]) RP.fx.push({kind:'dmg', side:1, val:p[3]-f[3], y:TC.SY-150, ttl:45});
-    if (f[4] === HITSTUN && p[4] !== HITSTUN) RP.fx.push({kind:'star', side:0, ttl:12});
-    if (f[5] === HITSTUN && p[5] !== HITSTUN) RP.fx.push({kind:'star', side:1, ttl:12});
-    if (f[4] === BLOCKSTUN && p[4] !== BLOCKSTUN) RP.fx.push({kind:'block', side:0, ttl:10});
-    if (f[5] === BLOCKSTUN && p[5] !== BLOCKSTUN) RP.fx.push({kind:'block', side:1, ttl:10});
+    for (const s of [0, 1]) {
+      const hpI = s ? 3 : 2, stI = s ? 5 : 4;
+      const dmg = p[hpI] - f[hpI];
+      const x = X(s, f), dir = s ? -1 : 1;
+      if (dmg > 0) {
+        RP.fx.push({kind:'dmg', side:s, val:dmg, y:TC.SY-150, ttl:50});
+        const heavy = dmg >= 14;
+        for (let i = 0; i < (heavy ? 14 : 7); i++)
+          RP.fx.push({kind:'spark', x:x+dir*20, y:TC.SY-80+(Math.random()*40-20),
+            vx:dir*(1+Math.random()*3.5), vy:Math.random()*4-2,
+            ttl:16+Math.random()*12, col: heavy ? '#ffd166' : '#ffb16b'});
+        RP.fx.push({kind:'ring', x:x+dir*24, y:TC.SY-78, r:6,
+          vr:heavy?4.5:2.6, ttl:heavy?16:10, col: heavy ? '#ffdc5a' : '#ff9a5b'});
+        if (heavy) { RP.shake = Math.min(18, RP.shake + 13); RP.hitstop = Math.max(RP.hitstop, 5); SFX.heavy(); }
+        else SFX.light();
+        const cb = RP.combo[s];
+        if (k - cb.last <= 100) cb.count++; else cb.count = 1;
+        cb.last = k;
+        if (cb.count >= 2) { RP.fx.push({kind:'combo', side:s, n:cb.count, ttl:55}); SFX.combo(cb.count); }
+      }
+      if (f[stI] === BLOCKSTUN && p[stI] !== BLOCKSTUN) {
+        RP.fx.push({kind:'block', side:s, ttl:10}); SFX.block();
+        RP.fx.push({kind:'ring', x:x+dir*30, y:TC.SY-76, r:4, vr:2, ttl:8, col:'#8ce6ff'});
+        for (let i = 0; i < 4; i++)
+          RP.fx.push({kind:'spark', x:x+dir*30, y:TC.SY-76, vx:dir*1.5*Math.random(),
+            vy:Math.random()*2-1, ttl:10, col:'#8ce6ff'});
+      }
+      if (f[stI] === HITSTUN && p[stI] !== HITSTUN) RP.fx.push({kind:'star', side:s, ttl:12});
+    }
+    // K.O.：白闪 + 重震 + 慢镜卡帧 + 彩带
+    if ((p[2] > 0 && f[2] <= 0) || (p[3] > 0 && f[3] <= 0)) {
+      RP.koIdx = k; RP.shake = 26; RP.hitstop = 14; RP.flash = 0.9;
+      SFX.ko();
+      for (let i = 0; i < 46; i++)
+        RP.fx.push({kind:'confetti', x:Math.random()*TC.W, y:-10-Math.random()*140,
+          vx:Math.random()*2-1, vy:1.5+Math.random()*2.5, ttl:90+Math.random()*70,
+          col:['#ff7a36','#5ad7e6','#ffd166','#b197fc','#69db7c'][i%5]});
+    }
+    // 出招风声（限频）
+    const act = d.actions[k] || [0, 0];
+    for (const s of [0, 1]) {
+      const a = s ? act[1] : act[0], stI = s ? 5 : 4;
+      if ((a === 2 || a === 3) && f[stI] === STARTUP && p[stI] !== STARTUP
+          && k - RP.whoosh[s] > 14) { RP.whoosh[s] = k; SFX.whiff(); }
+    }
+    // 最后 5 秒滴答
+    const rem = d.max_ticks - k;
+    if (rem > 0 && rem <= 300 && rem % 60 === 0) SFX.tick();
   }
   RP.idx = to;
   $('th-seek').value = to;
@@ -1423,7 +1589,10 @@ function rpLoop(ts) {
   if (!RP.open) return;
   const dt = Math.min(0.1, (ts - RP.last) / 1000 || 0);
   RP.last = ts;
-  if (RP.playing) {
+  if (RP.shake > 0) RP.shake = Math.max(0, RP.shake - dt * 46);
+  if (RP.flash > 0) RP.flash = Math.max(0, RP.flash - dt * 2.4);
+  if (RP.hitstop > 0) { RP.hitstop -= dt * 60; }   // 命中卡帧：定格演出
+  else if (RP.playing) {
     RP.acc += dt * RP.tps;
     const adv = Math.floor(RP.acc);
     if (adv > 0) {
@@ -1444,9 +1613,13 @@ async function openReplay(file) {
     const d = await api(`/api/replay_frames/${file}`);
     RP.data = d; RP.idx = 0; RP.acc = 0; RP.fx = []; RP.prevX = [null, null];
     RP.playing = true; RP.last = performance.now();
+    RP.shake = 0; RP.hitstop = 0; RP.flash = 0; RP.koIdx = -1;
+    RP.combo = [{count:0, last:-999}, {count:0, last:-999}];
+    RP.whoosh = [-99, -99];
     $('th-title').textContent = `🎬 ${d.players[0].name} vs ${d.players[1].name} · seed ${d.seed}`;
     $('th-seek').max = d.frames.length - 1; $('th-seek').value = 0;
     $('th-play').textContent = '⏸ 暂停';
+    SFX.bell();
     requestAnimationFrame(rpLoop);
   } catch (e) {
     $('th-title').textContent = '🎬 读取失败: ' + e.message;
@@ -1467,6 +1640,11 @@ $('th-play').onclick = () => {
   $('th-play').textContent = RP.playing ? '⏸ 暂停' : '⏵ 播放';
 };
 $('th-speed').onchange = e => RP.tps = +e.target.value;
+$('th-sound').onclick = () => {
+  RP.mute = !RP.mute;
+  $('th-sound').textContent = RP.mute ? '🔇' : '🔊';
+  if (!RP.mute) SFX.bell();
+};
 $('th-seek').oninput = e => {
   if (!RP.data) return;
   RP.playing = false; $('th-play').textContent = '⏵ 播放';
