@@ -196,10 +196,11 @@
   .thead b { font-size:15px; }
 
   /* 形象工坊 */
-  .ssrow { display:flex; align-items:center; gap:10px; }
-  .ssrow > span { width:82px; color:var(--sub); font-size:13px; flex-shrink:0; }
-  .ssrow input[type=color] { width:46px; height:30px; padding:2px; background:var(--panel2);
-    border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .ssrow { display:flex; align-items:center; gap:8px; }
+  .ssrow > span { width:62px; color:var(--sub); font-size:12px; flex-shrink:0; }
+  .ssrow select { padding:5px 8px; font-size:12px; }
+  .ssrow input[type=color] { width:38px; height:24px; padding:1px; background:var(--panel2);
+    border:1px solid var(--line); border-radius:6px; cursor:pointer; }
   .pcva { background:transparent; }
   .card { position:relative; }
   .card .edit-skin { position:absolute; top:10px; right:10px; opacity:.75; }
@@ -632,12 +633,12 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
 </div>
 
 <div class="modal" id="studio">
-  <div class="theater" style="max-width:640px">
-    <div class="thead"><b>🎨 形象工坊</b>
+  <div class="theater" style="max-width:470px;padding:12px 12px 10px">
+    <div class="thead" style="margin-bottom:8px"><b>🎨 形象工坊</b>
       <button class="btn-mini" id="ss-close">✕ 关闭</button></div>
-    <div style="display:flex;gap:18px;flex-wrap:wrap">
-      <canvas id="ss-prev" width="230" height="300" style="background:#101018;border-radius:12px"></canvas>
-      <div style="flex:1;min-width:240px;display:grid;gap:10px;align-content:start">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <canvas id="ss-prev" width="160" height="210" style="background:#101018;border-radius:10px"></canvas>
+      <div style="flex:1;min-width:190px;display:grid;gap:6px;align-content:start">
         <div class="ssrow"><span>体型</span>
           <select id="ss-base"><option value="hero">少年格斗家</option><option value="robot">机器人</option></select></div>
         <div class="ssrow"><span>主装/机身</span><input type="color" id="ss-main" value="#f8f8fa"></div>
@@ -651,15 +652,15 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
             <option value="shades">墨镜</option><option value="bow">蝴蝶结</option>
             <option value="scarf">围巾</option><option value="antenna">天线</option>
           </select></div>
-        <div class="ssrow"><button class="big alt" id="ss-rand">🎲 随机一捏</button></div>
+        <div class="ssrow"><button class="big alt" id="ss-rand" style="padding:6px 12px;font-size:12px">🎲 随机一捏</button></div>
       </div>
     </div>
-    <div class="row" style="margin-top:16px">
-      <span style="color:var(--sub);font-size:13px">保存到</span>
-      <select id="ss-target" style="flex:1"></select>
-      <button class="big" id="ss-save">保存形象</button>
+    <div class="row" style="margin-top:10px;gap:8px">
+      <span style="color:var(--sub);font-size:12px">保存到</span>
+      <select id="ss-target" style="flex:1;padding:5px 8px;font-size:12px"></select>
+      <button class="big" id="ss-save" style="padding:6px 14px;font-size:12px">保存形象</button>
     </div>
-    <div class="status" id="ss-status"></div>
+    <div class="status" id="ss-status" style="min-height:14px"></div>
   </div>
 </div>
 
@@ -914,16 +915,16 @@ function ssLoop(ts) {
   SS.t += Math.max(0, (ts - SS.last) / 1000) * 15; SS.last = ts;
   const c = $('ss-prev').getContext('2d');
   c.setTransform(1, 0, 0, 1, 0, 0);
-  c.fillStyle = '#101018'; c.fillRect(0, 0, 230, 300);
+  c.fillStyle = '#101018'; c.fillRect(0, 0, 160, 210);
   const cyc = Math.floor(SS.t / 70) % 4;
   const st = [IDLE, IDLE, STARTUP, ACTIVE][cyc];
-  c.setTransform(0.85, 0, 0, 0.85, 115 - 500 * 0.85, 236 - 350 * 0.85);
+  c.setTransform(0.6, 0, 0, 0.6, 80 - 500 * 0.6, 160 - 350 * 0.6);
   drawFighter(c, 0, [0.5, 100, st, false], 0, Math.floor(SS.t),
               cyc === 3, false, ssSkin(), 500);
   c.setTransform(1, 0, 0, 1, 0, 0);
-  c.fillStyle = '#8b95a7'; c.font = '11px -apple-system,sans-serif';
+  c.fillStyle = '#8b95a7'; c.font = '10px -apple-system,sans-serif';
   c.textAlign = 'center';
-  c.fillText(['待机 · 呼吸眨眼', '待机', '出招 · 蓄力', '重击 · 判定帧'][cyc], 115, 290);
+  c.fillText(['待机 · 呼吸眨眼', '待机', '出招 · 蓄力', '重击 · 判定帧'][cyc], 80, 200);
   c.textAlign = 'left';
   requestAnimationFrame(ssLoop);
 }
