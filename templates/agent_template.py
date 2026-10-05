@@ -50,6 +50,6 @@ class Agent(BaseAgent):
         # —— 默认策略（内置第一课「确反」；想登顶就继续改造）——
         if opp == RECOVERY and d <= 0.19:   # 对方收招硬直 → 重击惩罚
             return A_HEAVY
-        if d > 0.14:                        # 走进轻击射程（0.13）内
+        if d > 0.12:                        # 驻停 0.12 —— 必须落在轻击射程 0.13 内！
             return A_FWD
         return A_LIGHT                      # 交战带内轻击试探
