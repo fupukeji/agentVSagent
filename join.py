@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -212,16 +213,27 @@ def cmd_submit(args):
     print(f"{PASS} 战斗形象: {base} · {acc_cn} · 主色 {skin.get('main', '?')}"
           f"（官网动画回放中生效；--skin 可定制，见任务书「形象定制」）")
     if args.no_score:
-        print(f"{INFO} 跳过服务端评分（--no-score）")
+        print(f"{INFO} 跳过评分（--no-score）")
     else:
-        print(f"{INFO} 服务端隐藏池评分中（24 场，约 10~30 秒）…")
-        rep = http_json("POST", f"{server}/api/score/{entry['id']}")
-        s = rep["scores"]
-        print(f"{PASS} 综合分 {s['total']} / 100"
-              f"（胜率 {s['win_rate']:.0%} · 速度 {s['speed']:.2f} · "
-              f"稳定性 {s['stability']:.2f}）")
-        for code, d in rep["detail"].items():
-            print(f"    {code:<10} 胜率 {d['winrate']:.0%}  {d['desc'][:18]}")
+        print(f"{INFO} 服务端自动评分 + 锦标赛刷新已排队，等待评分结果…")
+        rep = None
+        for _ in range(60):                      # 轮询至多 ~150 秒
+            agents = http_json("GET", f"{server}/api/agents")
+            me = next((x for x in agents if x["id"] == entry["id"]), None)
+            if me and me.get("score"):
+                rep = me["score"]
+                break
+            time.sleep(2.5)
+        if rep:
+            s = rep["scores"]
+            print(f"{PASS} 综合分 {s['total']} / 100"
+ f"（胜率 {s['win_rate']:.0%} · 速度 {s['speed']:.2f} · "
+                  f"稳定性 {s['stability']:.2f}）")
+            for code, d in rep["detail"].items():
+                print(f"    {code:<10} 胜率 {d['winrate']:.0%}  {d['desc'][:18]}")
+        else:
+            print(f"{INFO} 评分仍在排队（服务器忙），稍后自动完成，可运行 "
+                  f"join.py rank 查看榜单")
     lb = http_json("GET", f"{server}/api/leaderboard")
     if lb.get("ready"):
         board = lb["board"]

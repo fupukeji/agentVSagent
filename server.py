@@ -45,6 +45,7 @@ for d in (DATA, UPLOADS, REPLAYS, SCORES):
 
 LOCK = threading.Lock()          # 串行化所有对局计算（内核快，无需并行）
 _CACHE = {}                      # spec → 已加载 Agent（predict 无状态可复用）
+TOUR = {"running": False, "log": ""}   # 锦标赛状态（防并发重入）
 
 BUILTIN = [
     dict(spec="ppo", name="阿焰·PPO", avatar="🧑‍🦰", note="强化学习 · PPO 训练",
@@ -278,13 +279,10 @@ def api_skin(agent_id: str, body: dict):
     return {"entry": e}
 
 
-@app.post("/api/match")
-def api_match(body: dict):
-    a, b = by_id(body.get("a")), by_id(body.get("b"))
-    seed = int(body.get("seed", int(time.time())) % 100000)
-    with LOCK:
-        ag_a, ag_b = get_agent(a["spec"]), get_agent(b["spec"])
-        outcome, _, _, path = play_one(ag_a, ag_b, seed, out_dir=str(REPLAYS))
+def run_match(a, b, seed):
+    """执行并记录一场对局（演控台 API 与自动擂台赛共用）。需持有 LOCK。"""
+    ag_a, ag_b = get_agent(a["spec"]), get_agent(b["spec"])
+    outcome, _, _, path = play_one(ag_a, ag_b, seed, out_dir=str(REPLAYS))
     if path:   # 把注册名与形象写入回放（复放/动画渲染用）
         rp = json.loads(Path(path).read_text(encoding="utf-8"))
         for pl, e in zip(rp["players"], (a, b)):
@@ -300,6 +298,15 @@ def api_match(body: dict):
            "seed": seed, "outcome": outcome,
            "replay": Path(path).name if path else None}
     append_match(rec)
+    return rec
+
+
+@app.post("/api/match")
+def api_match(body: dict):
+    a, b = by_id(body.get("a")), by_id(body.get("b"))
+    seed = int(body.get("seed", int(time.time())) % 100000)
+    with LOCK:
+        rec = run_match(a, b, seed)
     return rec
 
 
@@ -319,8 +326,15 @@ def api_tournament(body: dict | None = None):
     roster = load_roster()
     if len(roster) < 2:
         raise HTTPException(400, "至少需要 2 名选手")
-    with LOCK:
-        board, pairwise = tournament([e["spec"] for e in roster], games=games)
+    if TOUR["running"]:
+        raise HTTPException(409, f"锦标赛已在进行中（{TOUR['log']}），请稍候")
+    TOUR["running"] = True
+    TOUR["log"] = f"{len(roster)} 人 · 每对 {games} 局 · " + time.strftime("%H:%M:%S")
+    try:
+        with LOCK:
+            board, pairwise = tournament([e["spec"] for e in roster], games=games)
+    finally:
+        TOUR["running"] = False
     names = {e["spec"]: {"name": e["name"], "avatar": e["avatar"]}
              for e in roster}
     data = {"games_per_pair": games, "board": board, "pairwise": pairwise,
@@ -367,7 +381,9 @@ async def api_upload(file: UploadFile = File(...), name: str = Form(None),
                      f"随机君"}
     roster = load_roster() + [entry]
     save_roster(roster)
-    return {"entry": entry, "smoke_outcome": outcome}
+    # 全自动竞技场：注册即触发后台（补评分 → 刷新锦标赛），无需人工操作
+    threading.Thread(target=_auto_cycle, args=(entry["id"],), daemon=True).start()
+    return {"entry": entry, "smoke_outcome": outcome, "auto": "评分与锦标赛已自动排队"}
 
 
 # ---------------- 启动 ----------------
@@ -386,6 +402,48 @@ def _kickoff():
         except Exception as ex:  # noqa: BLE001
             print(f"[kickoff] 评分失败 {e['name']}: {ex}", flush=True)
     print("[kickoff] 全部就绪", flush=True)
+
+
+def _auto_cycle(new_agent_id=None):
+    """上传后自动：补评分（若无）→ 空闲则重跑锦标赛。后台线程执行。"""
+    try:
+        if new_agent_id:
+            e = next((x for x in load_roster() if x["id"] == new_agent_id), None)
+            if e and not (SCORES / f"{e['id']}.json").exists():
+                print(f"[arena] 自动评分: {e['name']} …", flush=True)
+                api_score(e["id"])
+        if not TOUR["running"]:
+            print("[arena] 自动锦标赛刷新…", flush=True)
+            api_tournament({"games": 6})
+    except Exception as ex:  # noqa: BLE001
+        print(f"[arena] 自动周期异常: {ex}", flush=True)
+
+
+def _exhibition():
+    """自动擂台赛：每 45 秒轮转捉对厮杀一场，保持战报流鲜活（无人操作）。"""
+    idx = 0
+    time.sleep(20)
+    while True:
+        time.sleep(45)
+        if not LOCK.acquire(blocking=False):     # 评分/锦标赛优先，忙则跳过本轮
+            continue
+        try:
+            roster = load_roster()
+            if len(roster) >= 2:
+                a = roster[idx % len(roster)]
+                b = roster[(idx + 1) % len(roster)]
+                idx += 1
+                if a["id"] == b["id"]:
+                    continue
+                rec = run_match(a, b, int(time.time()) % 100000)
+                o = rec["outcome"]
+                w = "平" if o["winner"] is None else rec["a" if o["winner"] == 0 else "b"]["name"]
+                print(f"[arena] 擂台赛 {rec['a']['name']} vs {rec['b']['name']} "
+                      f"→ {o['result']}（{w}）", flush=True)
+        except Exception as ex:  # noqa: BLE001
+            print(f"[arena] 擂台赛异常: {ex}", flush=True)
+        finally:
+            LOCK.release()
 
 
 @app.on_event("startup")
@@ -407,6 +465,8 @@ def on_startup():
         if changed:
             save_roster(roster)
             print("[kickoff] 已为历史选手生成专属形象", flush=True)
+    threading.Thread(target=_exhibition, daemon=True).start()
+    print("[arena] 自动擂台赛线程已启动（每 45 秒一场）", flush=True)
 
 
 app.mount("/", StaticFiles(directory=str(ROOT / "static"), html=True),

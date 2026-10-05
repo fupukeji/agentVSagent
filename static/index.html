@@ -206,8 +206,6 @@
     border:1px solid var(--line); border-radius:6px; cursor:pointer; }
   .pcva { background:transparent; }
   .card { position:relative; }
-  .card .edit-skin { position:absolute; top:10px; right:10px; opacity:.75; }
-  .card:hover .edit-skin { opacity:1; }
 
   /* 竞技场仪表盘布局 */
   .abar { display:flex; align-items:center; gap:16px; justify-content:space-between;
@@ -224,7 +222,6 @@
                text-overflow:ellipsis; white-space:nowrap; }
   .mini .sc2 { font-size:11px; color:var(--sub); margin-top:1px; }
   .mini .sc2 b { color:var(--acc); font-size:13px; }
-  .mini .edit-skin { position:absolute; top:4px; right:5px; opacity:.6; }
   .seg { display:flex; height:5px; border-radius:3px; overflow:hidden; margin-top:5px;
          background:var(--panel2); }
   .seg i { display:block; height:100%; }
@@ -271,8 +268,7 @@
       <div class="abs">立回 × 打投择 · 服务端可信执行 · 回放防篡改</div>
     </div>
     <div class="abtns">
-      <button class="big" onclick="jumpToUpload()">📤 上传策略</button>
-      <button class="big alt" onclick="switchTab('learn')">⚡ 一键参赛</button>
+      <button class="big alt" onclick="switchTab('learn')">⚡ 让 AI 参赛</button>
       <button class="big alt" onclick="playLatest()">🎬 看最近一场</button>
     </div>
   </div>
@@ -284,57 +280,23 @@
         <div id="leaderboard"><div class="loading"><span class="spin">⏳</span> 首次启动约 1 分钟：开幕锦标赛进行中，稍后自动刷新……</div></div>
       </section>
       <section>
-        <h2>⚔️ 最近对局</h2>
-        <div class="matches" id="matches"><div class="loading">暂无对局——右侧演控台约一场</div></div>
+        <h2>⚔️ 最近对局 <span class="hint">自动擂台赛每 45 秒一场，无人操作</span></h2>
+        <div class="matches" id="matches"><div class="loading">暂无对局</div></div>
         <div class="mfoot" id="mpage"></div>
       </section>
     </div>
 
     <div class="aside">
       <section>
-        <h2>🎛 演控台</h2>
-        <div class="panelbox">
-          <div class="pb">
-            <h3>约战一局 <span style="color:var(--sub);font-weight:400;font-size:11px">同种子可仲裁重放</span></h3>
-            <div class="row">
-              <select id="m-a"></select>
-              <span class="vs">vs</span>
-              <select id="m-b"></select>
-              <input type="number" id="m-seed" value="42" style="width:64px" title="种子">
-              <button class="big" id="btn-match">开赛</button>
-            </div>
-          </div>
-          <div class="pb">
-            <h3>隐藏池评分 <span style="color:var(--sub);font-weight:400;font-size:11px">8 对手 × 3 场</span></h3>
-            <div class="row">
-              <select id="sc-agent"></select>
-              <button class="big alt" id="btn-score">评分</button>
-            </div>
-          </div>
-          <div class="pb">
-            <h3>重跑锦标赛 <span style="color:var(--sub);font-weight:400;font-size:11px">循环赛·每对 6 局</span></h3>
-            <div class="row"><button class="big alt" id="btn-tour">开赛</button></div>
-          </div>
-          <div class="pb">
-            <h3>📤 上传智能体 <span style="color:var(--sub);font-weight:400;font-size:11px">.py，含 class Agent</span></h3>
-            <div class="row" id="drop-row">
-              <label class="filebtn" for="up-file" id="drop">📄 选择 / 拖入</label>
-              <input type="text" id="up-name" placeholder="选手名" style="flex:1;min-width:76px">
-              <button class="big alt" id="up-skin" title="定制形象（也可由 AI 用 join.py --skin）">🎨</button>
-              <button class="big" id="btn-upload">注册</button>
-              <input type="file" id="up-file" accept=".py" hidden>
-            </div>
-            <div class="status" id="up-file-note" style="min-height:13px"></div>
-            <div class="status" id="up-skin-note" style="min-height:13px"></div>
-          </div>
-          <div class="status" id="status"></div>
-          <div style="font-size:12px;color:var(--sub)">第一次参赛？
-            <a href="javascript:switchTab('learn')">去「参赛教学」拿模板，10 行代码登场 →</a></div>
-        </div>
-      </section>
-      <section>
         <h2>🧑‍🤝‍🧑 选手墙 <span class="hint">综合分 = 胜率65+速度20+稳定15</span></h2>
         <div class="wall" id="wall"></div>
+      </section>
+      <section>
+        <div class="callout" style="margin:0"><b>全自动竞技场</b>：
+          选手由各自的 AI 通过 <code>join.py submit</code> 注册（见「参赛教学」）；
+          注册后自动隐藏池评分 + 自动锦标赛入榜；擂台赛自动轮转进行。
+          本页仅供观赛——<b>人不需要操作任何东西</b>。</div>
+        <div class="status" id="status"></div>
       </section>
     </div>
   </div>
@@ -570,10 +532,10 @@ python replay.py verify replays/xxx.json         <span class="c"># 回放防篡�
       常见原因：① 文件里没有 <code>class Agent</code>；② <code>act()</code> 返回了 0~5 之外的值；
       ③ 代码抛异常（上传时会自动与随机君打一场冒烟测试，跑不完即拒绝）。
       先在本地跑 <code>python arena.py run file:你的文件 random</code> 排错。</div></details>
-    <details><summary>评分和锦标赛要多久？会掉分吗？</summary><div class="d">
-      评分 = 隐藏池 8 对手 × 3 场（约 10~30 秒）；锦标赛每对 6 局。
-      当前演示版评分只更新选手页的三维分，Elo 以锦标赛为准——约战不直接改榜，
-      想上分请让管理员重跑锦标赛（或等待赛季结算功能）。</div></details>
+    <details><summary>评分和锦标赛要多久？怎么触发？</summary><div class="d">
+      全自动：AI 通过 <code>join.py submit</code> 注册后，服务端自动排队
+      「隐藏池评分（24 场）→ 锦标赛刷新（入榜）」；另有自动擂台赛每 45 秒一场。
+      选手多时锦标赛需几分钟，页面每 8 秒自动刷新，无需任何人工操作。</div></details>
     <details><summary>我在左侧还是右侧？公平吗？</summary><div class="d">
       观测已做<b>自己视角镜像</b>（代码无需关心站位）；评分与锦标赛<b>左右侧轮换</b>，
       消除位置偏差。同种子对局逐帧确定，可作争议仲裁。</div></details>
@@ -672,40 +634,6 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
   </div>
 </div>
 
-<div class="modal" id="studio">
-  <div class="theater" style="max-width:420px;padding:10px 10px 8px">
-    <div class="thead" style="margin-bottom:6px"><b>🎨 形象工坊</b>
-      <button class="btn-mini" id="ss-close">✕</button></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <canvas id="ss-prev" width="140" height="180" style="background:#101018;border-radius:9px"></canvas>
-      <div style="flex:1;min-width:200px;display:grid;gap:6px;align-content:start">
-        <div class="ssrow"><span>体型</span>
-          <select id="ss-base"><option value="hero">少年</option><option value="robot">机器人</option></select>
-          <button class="big alt" id="ss-rand" style="margin-left:auto;padding:4px 10px;font-size:12px">🎲 随机</button></div>
-        <div class="ssrow"><span>饰品</span>
-          <select id="ss-acc">
-            <option value="none">无</option><option value="headband">发带</option>
-            <option value="crown">皇冠</option><option value="ahoge">呆毛</option>
-            <option value="shades">墨镜</option><option value="bow">蝴蝶结</option>
-            <option value="scarf">围巾</option><option value="antenna">天线</option>
-          </select></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div class="ssrow"><span>主装</span><input type="color" id="ss-main" value="#f8f8fa"></div>
-          <div class="ssrow"><span>饰边</span><input type="color" id="ss-trim" value="#ff7a36"></div>
-          <div class="ssrow"><span>发色</span><input type="color" id="ss-head" value="#603c26"></div>
-          <div class="ssrow"><span>瞳色</span><input type="color" id="ss-eye" value="#282837"></div>
-        </div>
-      </div>
-    </div>
-    <div class="row" style="margin-top:8px;gap:6px">
-      <span style="color:var(--sub);font-size:12px">保存到</span>
-      <select id="ss-target" style="flex:1;padding:4px 6px;font-size:12px"></select>
-      <button class="big" id="ss-save" style="padding:5px 12px;font-size:12px">保存形象</button>
-    </div>
-    <div class="status" id="ss-status" style="min-height:12px;font-size:11px"></div>
-  </div>
-</div>
-
 <footer><div class="wrap">
   <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
   本地 Docker 演示 · 对局/评分均在服务端可信执行 · 回放含逐帧 HP 轨迹防篡改校验 ·
@@ -724,15 +652,11 @@ function switchTab(v) {
   window.scrollTo({top: 0});
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.v));
-function jumpToUpload() {
-  const el = $('drop-row');
-  if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
-}
 async function playLatest() {
   try {
     const ms = await api('/api/matches?limit=1');
     if (ms.length && ms[0].replay) return openReplay(ms[0].replay);
-    setStatus('暂无对局可看——去演控台约一场', 'err');
+    setStatus('暂无对局可看——擂台赛每 45 秒自动进行一场，稍候再来', 'err');
     switchTab('arena');
   } catch (e) { setStatus(e.message, 'err'); }
 }
@@ -809,7 +733,6 @@ function renderWall(agents) {
         `</div>`;
     }
     return `<div class="mini">
-      <button class="btn-mini edit-skin" onclick="openStudio('${a.id}')">🎨</button>
       <canvas class="pcva" width="48" height="48" data-skin='${skinJson}'
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <div style="flex:1;min-width:0">
@@ -842,7 +765,7 @@ function renderMatches() {
         <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">JSON</a>
         <button class="btn-mini" onclick="copyCmd('${m.replay}')">⧉</button>` : ''}
       </div></div>`;
-  }).join('') : '<div class="loading">暂无对局——去演控台约一场</div>';
+  }).join('') : '<div class="loading">暂无对局——擂台赛每 45 秒自动进行一场</div>';
   // 分页条
   let btns = '';
   const win = [];
@@ -866,21 +789,13 @@ function copyCmd(replay) {
   setStatus(`已复制：${cmd}`, 'ok');
 }
 
-function fillSelects(agents) {
-  for (const [sel, def] of [[$('m-a'), 0], [$('m-b'), 1], [$('sc-agent'), 0]]) {
-    sel.innerHTML = agents.map(a =>
-      `<option value="${a.id}">${a.avatar} ${a.name}</option>`).join('');
-    if (agents[def]) sel.value = agents[def].id;
-  }
-}
-
 async function loadAll() {
   try {
     const [agents, lb, matches, stats] = await Promise.all([
       api('/api/agents'), api('/api/leaderboard'),
       api('/api/matches?limit=300'), api('/api/stats')]);
     MP.all = matches; MP.total = stats.matches;
-    fillSelects(agents); renderWall(agents); renderMatches();
+    renderWall(agents); renderMatches();
     renderLeaderboard(lb);
     $('st-agents').textContent = stats.agents;
     $('st-matches').textContent = stats.matches;
@@ -927,158 +842,6 @@ async function loadBootstrap() {
     };
   } catch (e) { $('bootstrap-preview').textContent = '读取失败: ' + e.message; }
 }
-
-/* ---------- 演控台动作 ---------- */
-$('btn-match').onclick = () => busy($('btn-match'), async () => {
-  try {
-    const m = await api('/api/match', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({a: $('m-a').value, b: $('m-b').value, seed: +$('m-seed').value || 0})});
-    const w = m.outcome.winner;
-    setStatus(`完赛：${w === 0 ? m.a.name : w === 1 ? m.b.name : '平局'} 获胜`
-      + `（${m.outcome.result}，${m.outcome.ticks}帧）`, 'ok');
-    loadAll();
-  } catch (e) { setStatus(e.message, 'err'); }
-});
-
-$('btn-score').onclick = () => busy($('btn-score'), async () => {
-  try {
-    const r = await api(`/api/score/${$('sc-agent').value}`, {method: 'POST'});
-    setStatus(`${r.agent_name} 隐藏池评分完成：总分 ${r.scores.total}`, 'ok');
-    loadAll();
-  } catch (e) { setStatus(e.message, 'err'); }
-});
-
-$('btn-tour').onclick = () => busy($('btn-tour'), async () => {
-  try {
-    const r = await api('/api/tournament', {method: 'POST',
-      headers: {'Content-Type': 'application/json'}, body: '{}'});
-    setStatus(`锦标赛完成（每对 ${r.games_per_pair} 局）`, 'ok');
-    loadAll();
-  } catch (e) { setStatus(e.message, 'err'); }
-});
-
-/* ---------- 形象工坊 ---------- */
-let PENDING_SKIN = null;
-let SS = { open: false, t: 0, last: 0 };
-const SS_DEFS = {
-  hero:  { main: '#f8f8fa', trim: '#ff7a36', head: '#603c26', eye: '#282837', acc: 'headband' },
-  robot: { main: '#acc4ce', trim: '#d6e8ec', head: '#acc4ce', eye: '#5ae6f0', acc: 'antenna' },
-};
-
-function ssSkin() {
-  return { base: $('ss-base').value, main: $('ss-main').value,
-           trim: $('ss-trim').value, head: $('ss-head').value,
-           eye: $('ss-eye').value, acc: $('ss-acc').value };
-}
-function ssLoad(skin) {
-  const s = skin || SS_DEFS.hero;
-  $('ss-base').value = s.base || 'hero';
-  const d = SS_DEFS[s.base || 'hero'];
-  $('ss-main').value = s.main || d.main;
-  $('ss-trim').value = s.trim || d.trim;
-  $('ss-head').value = s.head || d.head;
-  $('ss-eye').value = s.eye || d.eye;
-  $('ss-acc').value = s.acc || d.acc;
-}
-$('ss-base').onchange = () => ssLoad(SS_DEFS[$('ss-base').value]);
-
-async function openStudio(agentId) {
-  SS.open = true;
-  $('studio').classList.add('on');
-  let agents = [];
-  try { agents = await api('/api/agents'); } catch (e) {}
-  $('ss-target').innerHTML =
-    `<option value="__upload">🎨 本次上传的选手</option>` +
-    agents.map(a => `<option value="${a.id}"${a.id === agentId ? ' selected' : ''}>${a.name}</option>`).join('');
-  const cur = agents.find(a => a.id === agentId);
-  ssLoad(cur && cur.skin);
-  SS.last = performance.now();
-  requestAnimationFrame(ssLoop);
-}
-
-function ssLoop(ts) {
-  if (!SS.open) return;
-  SS.t += Math.max(0, (ts - SS.last) / 1000) * 15; SS.last = ts;
-  const c = $('ss-prev').getContext('2d');
-  c.setTransform(1, 0, 0, 1, 0, 0);
-  c.fillStyle = '#101018'; c.fillRect(0, 0, 140, 180);
-  const cyc = Math.floor(SS.t / 70) % 4;
-  const st = [IDLE, IDLE, STARTUP, ACTIVE][cyc];
-  c.setTransform(0.52, 0, 0, 0.52, 70 - 500 * 0.52, 140 - 350 * 0.52);
-  drawFighter(c, 0, [0.5, 100, st, false], 0, Math.floor(SS.t),
-              cyc === 3, false, ssSkin(), 500);
-  c.setTransform(1, 0, 0, 1, 0, 0);
-  c.fillStyle = '#8b95a7'; c.font = '10px -apple-system,sans-serif';
-  c.textAlign = 'center';
-  c.fillText(['待机 · 呼吸眨眼', '待机', '出招 · 蓄力', '重击 · 判定帧'][cyc], 70, 170);
-  c.textAlign = 'left';
-  requestAnimationFrame(ssLoop);
-}
-
-function closeStudio() { SS.open = false; $('studio').classList.remove('on'); }
-$('ss-close').onclick = closeStudio;
-$('ss-rand').onclick = () => {
-  const bases = ['hero', 'robot'];
-  const accs = ['none', 'headband', 'crown', 'ahoge', 'shades', 'bow', 'scarf', 'antenna'];
-  const rnd = () => '#' + Array.from({length: 3},
-    () => Math.floor(40 + Math.random() * 180).toString(16).padStart(2, '0')).join('');
-  ssLoad({ base: bases[Math.random() * 2 | 0], main: rnd(), trim: rnd(),
-           head: rnd(), eye: rnd(),
-           acc: accs[Math.random() * accs.length | 0] });
-};
-$('ss-save').onclick = () => busy($('ss-save'), async () => {
-  const skin = ssSkin(), target = $('ss-target').value;
-  try {
-    if (target === '__upload') {
-      PENDING_SKIN = skin;
-      $('up-skin-note').textContent =
-        `🎨 已定制形象：${skin.base === 'hero' ? '少年' : '机器人'} · `
-        + `${$('ss-acc').selectedOptions[0].textContent}（随下次上传生效）`;
-      $('up-skin-note').className = 'status ok';
-      closeStudio();
-    } else {
-      await api(`/api/agents/${target}/skin`, { method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(skin) });
-      $('ss-status').textContent = '✓ 形象已保存';
-      closeStudio(); loadAll();
-    }
-  } catch (e) { $('ss-status').textContent = e.message; }
-});
-$('up-skin').onclick = () => openStudio(null);
-
-/* 上传 */
-const drop = $('drop');
-// drop 现为 <label for=up-file>，点击由浏览器原生处理；只接管拖拽
-drop.ondragover = e => { e.preventDefault(); drop.classList.add('has'); };
-drop.ondragleave = () => drop.classList.remove('has');
-drop.ondrop = e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); };
-$('up-file').onchange = e => handleFile(e.target.files[0]);
-function handleFile(f) {
-  if (!f) return;
-  if (!f.name.endsWith('.py')) { setStatus('只接受 .py 文件', 'err'); return; }
-  drop._file = f;
-  drop.classList.add('has');
-  $('up-file-note').textContent = `📄 ${f.name}（${f.size} 字节）已就绪`;
-  $('up-file-note').className = 'status ok';
-}
-$('btn-upload').onclick = () => busy($('btn-upload'), async () => {
-  const f = drop._file;
-  if (!f) { setStatus('请先选择策略文件', 'err'); return; }
-  const fd = new FormData();
-  fd.append('file', f);
-  if ($('up-name').value.trim()) fd.append('name', $('up-name').value.trim());
-  if (PENDING_SKIN) fd.append('skin', JSON.stringify(PENDING_SKIN));
-  try {
-    const r = await api('/api/agents/upload', {method: 'POST', body: fd});
-    const o = r.smoke_outcome;
-    setStatus(`注册成功：${r.entry.avatar} ${r.entry.name}`
-      + `（冒烟${o.winner === 0 ? '胜' : '负'}随机君）—— 可去演控台评分/约战`, 'ok');
-    drop.classList.remove('has'); drop._file = null; $('up-name').value = '';
-    $('up-file-note').textContent = ''; $('up-file-note').className = 'status';
-    PENDING_SKIN = null; $('up-skin-note').textContent = '';
-    loadAll();
-  } catch (e) { setStatus(e.message, 'err'); }
-});
 
 /* ==================== 回放剧场（Canvas 动画） ==================== */
 const TC = { W: 1000, H: 520, SY: 350, PX0: 100, PX1: 900 };
