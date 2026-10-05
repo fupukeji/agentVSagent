@@ -5,6 +5,7 @@
 按键：空格 暂停 | +/- 调速（2~60 tick/秒，60=真实速度）| ESC 退出
 """
 
+import math
 import os
 import sys
 import pygame
@@ -53,28 +54,324 @@ def to_px(x):
     return PX0 + x * (PX1 - PX0)
 
 
-def draw_fighter(screen, font, f, facing):
-    px = to_px(f.x)
-    color = STATE_COLORS[f.state]
-    body = pygame.Rect(0, 0, 46, 84)
-    body.center = (px, STAGE_Y - 42)
-    pygame.draw.rect(screen, color, body, border_radius=10)
-    head = pygame.draw.circle(screen, color, (px, STAGE_Y - 100), 16)
-    if f.blocking:
-        pygame.draw.rect(screen, (80, 220, 230), body, 3, border_radius=10)
-    if f.state == S_ACTIVE:  # 判定帧：白色闪光描边
-        pygame.draw.rect(screen, WHITE, body.inflate(14, 14), 3, border_radius=12)
-    # 眼睛（表示朝向）
-    pygame.draw.circle(screen, BG, (px + facing * 6, STAGE_Y - 102), 3)
-    # 状态文字
-    if f.move:
-        txt = f"{f.move.name} · {STATE_NAMES[f.state]} {f.frames_left}帧"
-    elif f.blocking:
-        txt = "防御中"
+# ---------------------------------------------------------------
+# 卡通角色：左·阿焰（元气少年） / 右·铁蛋（圆脸机器人）
+# 手脚/表情全部矢量绘制，无外部素材；状态驱动姿态，帧计数驱动小动画
+# ---------------------------------------------------------------
+HERO = dict(  # 阿焰：橙发带少年格斗家
+    skin=(255, 219, 179), hair=(96, 60, 38), band=(255, 122, 54),
+    cloth=(248, 248, 250), belt=(255, 122, 54), fist=(255, 200, 160),
+    pants=(70, 90, 140), shoe=(240, 240, 245), ribbon=(255, 122, 54),
+)
+ROBOT = dict(  # 铁蛋：圆脸机器人
+    metal=(172, 198, 206), dark=(96, 116, 130), visor=(24, 34, 44),
+    eye=(90, 230, 240), belly=(214, 232, 236), fist=(150, 176, 186),
+    pants=(120, 140, 152), shoe=(80, 96, 108), ribbon=None,
+)
+
+
+def _capsule(surf, color, a, b, r):
+    """胶囊肢体：圆头粗线段 + 端点圆。"""
+    pygame.draw.line(surf, color, a, b, r * 2)
+    pygame.draw.circle(surf, color, a, r)
+    pygame.draw.circle(surf, color, b, r)
+
+
+def _star(surf, color, c, r, n=8):
+    """星光迸射（命中特效）。"""
+    import math
+    pts = []
+    for i in range(n * 2):
+        rad = r if i % 2 == 0 else r * 0.4
+        ang = math.pi * i / n
+        pts.append((c[0] + rad * math.cos(ang), c[1] + rad * math.sin(ang)))
+    pygame.draw.polygon(surf, color, pts)
+
+
+def _swirl(surf, color, c, r):
+    """眩晕涡旋（受击表情）。"""
+    for k in range(3):
+        pygame.draw.circle(surf, color, (c[0] - 4 + k * 4, c[1]),
+                           r - k * 2, 1)
+
+
+def _sweat(surf, c):
+    """收招冷汗。"""
+    x, y = c
+    pygame.draw.circle(surf, (150, 210, 255), (int(x), int(y)), 4)
+    pygame.draw.polygon(surf, (150, 210, 255),
+                        [(x - 4, y - 4), (x + 4, y - 4), (x, y - 11)])
+
+
+def _face_hero(surf, f, hx, hy, facing, t, mouth):
+    """阿焰的脸：刺猬头 + 发带 + 大眼睛。"""
+    # 后脑发带飘带（随帧飘动）
+    fl = 3 * math.sin(t * 0.25)
+    bx = hx - facing * 20
+    pygame.draw.polygon(surf, HERO["ribbon"],
+                        [(bx, hy - 8), (bx - facing * 16, hy - 12 + fl),
+                         (bx - facing * 12, hy - 2 + fl)])
+    # 头发：刺猬尖
+    pygame.draw.circle(surf, HERO["hair"], (hx, hy - 6), 19)
+    for i, dx in enumerate((-13, -4, 6, 14)):
+        tip = 10 + (i % 2) * 4
+        pygame.draw.polygon(surf, HERO["hair"], [
+            (hx + dx - 4, hy - 14), (hx + dx + 4, hy - 14),
+            (hx + dx + facing * 2, hy - 14 - tip)])
+    pygame.draw.circle(surf, HERO["skin"], (hx, hy + 2), 17)
+    # 发带
+    pygame.draw.rect(surf, HERO["band"],
+                     (hx - 18, hy - 12, 36, 7), border_radius=3)
+    pygame.draw.circle(surf, HERO["band"], (hx + facing * 10, hy - 9), 4)
+    _eyes(surf, f, hx, hy, facing, t, skin=HERO["skin"])
+    my = hy + 10
+    if mouth == "shout":
+        pygame.draw.ellipse(surf, (120, 60, 50),
+                            (hx + facing * 3 - 5, my - 2, 10, 8))
+    elif mouth == "ouch":
+        pygame.draw.lines(surf, (120, 60, 50), False,
+                          [(hx - 5, my), (hx - 1, my + 2), (hx + 3, my),
+                           (hx + 7, my + 2)], 2)
     else:
-        txt = STATE_NAMES[S_IDLE]
-    surf = font.render(f"{f.name}  {txt}", True, color)
-    screen.blit(surf, (px - surf.get_width() // 2, STAGE_Y - 150))
+        pygame.draw.arc(surf, (120, 60, 50),
+                        (hx + facing * 3 - 6, my - 4, 12, 8), 3.3, 6.1, 2)
+
+
+def _face_robot(surf, f, hx, hy, facing, t, mouth):
+    """铁蛋的脸：天线 + 面罩扫描眼。"""
+    # 天线（顶端小球闪烁）
+    pygame.draw.line(surf, ROBOT["dark"], (hx, hy - 18), (hx, hy - 30), 3)
+    on = (t // 12) % 2 == 0
+    pygame.draw.circle(surf, (255, 120, 110) if on else ROBOT["dark"],
+                       (hx, hy - 32), 4)
+    # 头
+    pygame.draw.circle(surf, ROBOT["metal"], (hx, hy), 19)
+    pygame.draw.circle(surf, ROBOT["belly"], (hx, hy + 4), 14)
+    # 面罩
+    vw, vh = 26, 12
+    vr = pygame.Rect(hx - vw // 2, hy - 4, vw, vh)
+    pygame.draw.rect(surf, ROBOT["visor"], vr, border_radius=6)
+    # 眼：情绪变色 + 扫描滑动
+    if f.hp <= 0:
+        for ex in (hx - 6, hx + 6):
+            pygame.draw.line(surf, (255, 90, 80), (ex - 3, hy - 4),
+                             (ex + 3, hy + 8), 2)
+            pygame.draw.line(surf, (255, 90, 80), (ex + 3, hy - 4),
+                             (ex - 3, hy + 8), 2)
+    elif f.state == S_HITSTUN:
+        _swirl(surf, (255, 140, 120), (hx, hy + 2), 5)
+    else:
+        col = ROBOT["eye"]
+        if f.state == S_ACTIVE:
+            col = (255, 170, 70)
+        elif f.state in (S_BLOCKSTUN,) or f.blocking:
+            col = (120, 180, 255)
+        scan = int(6 * math.sin(t * 0.2))
+        pygame.draw.circle(surf, col, (hx - 5 + scan, hy + 2), 3)
+        pygame.draw.circle(surf, col, (hx + 5 + scan, hy + 2), 3)
+    # 嘴：格栅
+    for gx in (-6, -2, 2, 6):
+        pygame.draw.line(surf, ROBOT["dark"],
+                         (hx + gx, hy + 11), (hx + gx, hy + 14), 2)
+    if mouth == "shout":
+        pygame.draw.circle(surf, (255, 170, 70), (hx + facing * 3, hy + 12), 3)
+
+
+def _eyes(surf, f, hx, hy, facing, t, skin):
+    """通用卡通眼（阿焰用）：睁/眨/怒/晕/X。"""
+    ey = hy + 1
+    blink = (t % 160) < 6 and f.state == S_IDLE
+    for ex in (hx + facing * 3 - 7, hx + facing * 3 + 7):
+        if f.hp <= 0:
+            pygame.draw.line(surf, (60, 40, 30), (ex - 3, ey - 3), (ex + 3, ey + 3), 2)
+            pygame.draw.line(surf, (60, 40, 30), (ex + 3, ey - 3), (ex - 3, ey + 3), 2)
+        elif f.state == S_HITSTUN:
+            _swirl(surf, (60, 40, 30), (ex, ey), 4)
+        elif blink:
+            pygame.draw.line(surf, (60, 40, 30), (ex - 4, ey), (ex + 4, ey), 2)
+        else:
+            pygame.draw.ellipse(surf, WHITE, (ex - 4, ey - 4, 8, 9))
+            pygame.draw.circle(surf, (40, 40, 55),
+                               (ex + facing * 1, ey + 1), 3)
+            pygame.draw.circle(surf, WHITE, (ex + facing * 2, ey - 1), 1)
+    # 怒眉（出招时）
+    if f.state in (S_STARTUP, S_ACTIVE):
+        bx = hx + facing * 3
+        pygame.draw.line(surf, HERO["hair"],
+                         (bx - 9, ey - 8), (bx - 2, ey - 6), 2)
+        pygame.draw.line(surf, HERO["hair"],
+                         (bx + 2, ey - 6), (bx + 9, ey - 8), 2)
+
+
+def draw_fighter(screen, font, f, facing, t=0):
+    """卡通角色绘制（姿态由状态驱动；行走/呼吸/眨眼由帧计数驱动）。"""
+    import math
+    pal = HERO if facing > 0 else ROBOT
+    is_hero = facing > 0
+    px = to_px(f.x)
+
+    # --- 行走检测（上一帧位置比对）→ 迈步相位与重心偏移 ---
+    dx = 0.0
+    if getattr(f, "_last_t", None) == t - 1:
+        dx = f.x - getattr(f, "_last_x", f.x)
+    f._last_t, f._last_x = t, f.x
+    if not hasattr(f, "_walk"):
+        f._walk = 0.0
+    f._walk += dx * 900
+    lean = max(-1, min(1, dx * 120)) * facing   # 前进前倾/后撤后仰
+
+    ko = f.hp <= 0
+    bob = 2 * math.sin(t * 0.15) if f.state == S_IDLE and not ko else 0
+    hx0 = px + (10 * -facing if ko else 0)      # 倒地时头往后倒
+    hy0 = STAGE_Y - 30                          # 腰部锚点
+
+    # --- 地面阴影 ---
+    pygame.draw.ellipse(screen, (10, 10, 16),
+                        (px - 26, STAGE_Y - 6, 52, 10))
+
+    if ko:                                       # K.O. 倒地姿态
+        body_y = STAGE_Y - 12
+        _capsule(screen, pal["cloth"] if is_hero else pal["metal"],
+                 (px - facing * 6, body_y), (px + facing * 30, body_y), 14)
+        _capsule(screen, pal["pants"],
+                 (px + facing * 30, body_y), (px + facing * 46, body_y - 8), 8)
+        head_c = (px - facing * 30, body_y - 4)
+        if is_hero:
+            _face_hero(screen, f, head_c[0], head_c[1], facing, t, "ouch")
+        else:
+            _face_robot(screen, f, head_c[0], head_c[1], facing, t, "ouch")
+        for k in range(3):                       # 头顶绕圈星星
+            ang = t * 0.2 + k * 2.09
+            sx = head_c[0] + 22 * math.cos(ang)
+            sy = head_c[1] - 26 + 6 * math.sin(ang)
+            _star(screen, (255, 220, 90), (sx, sy), 5, 5)
+        _name_tag(screen, font, f, px, STAGE_Y - 66)
+        return
+
+    # --- 站立姿态骨架 ---
+    by = STAGE_Y - 62 + bob                     # 躯干中心
+    bx = px + lean * 5
+    head_c = (bx + lean * 4, STAGE_Y - 108 + bob)
+
+    # 后臂（先画，被身体遮挡）
+    sh_back = (bx - facing * 14, by - 16)
+    # 后腿/前腿：迈步剪刀脚
+    step = math.sin(f._walk * 0.25) * 7 if abs(dx) > 1e-6 else 0
+    hip = (bx, by + 26)
+    for foot_dx, leg_c in ((10 + step, pal["pants"]), (-8 - step, pal["pants"])):
+        foot = (bx + facing * foot_dx, STAGE_Y - 3)
+        _capsule(screen, leg_c, (bx + facing * (foot_dx * 0.3), by + 18), foot, 7)
+        pygame.draw.ellipse(screen, pal["shoe"],
+                            (foot[0] - 9, foot[1] - 5, 18, 9))
+
+    # 躯干
+    body_col = pal["cloth"] if is_hero else pal["metal"]
+    pygame.draw.rect(screen, body_col,
+                     (bx - 21, by - 28, 42, 52), border_radius=16)
+    if is_hero:
+        pygame.draw.rect(screen, pal["belt"],
+                         (bx - 21, by + 8, 42, 9), border_radius=4)
+        pygame.draw.circle(screen, (255, 220, 140), (bx, by + 12), 3)
+    else:                                        # 机器人：肚皮 + 铆钉
+        pygame.draw.circle(screen, pal["belly"], (bx, by + 4), 13)
+        for gx in (-14, 14):
+            pygame.draw.circle(screen, pal["dark"],
+                               (bx + gx, by - 18), 2)
+
+    # 头
+    if is_hero:
+        _face_hero(screen, f, head_c[0], head_c[1], facing, t,
+                   "shout" if f.state in (S_STARTUP, S_ACTIVE) else
+                   ("ouch" if f.state == S_HITSTUN else "idle"))
+    else:
+        _face_robot(screen, f, head_c[0], head_c[1], facing, t,
+                    "shout" if f.state in (S_STARTUP, S_ACTIVE) else "idle")
+
+    # 前臂姿态（按状态）
+    sh = (bx + facing * 14, by - 16)
+    heavy = f.move is not None and getattr(f.move, "kind", "") == "strike" \
+        and f.move.name == "重击"
+    fist_r = 9 if heavy else 7
+    if f.state == S_ACTIVE and f.move is not None:
+        if f.move.kind == "throw":              # 投技：双手前探
+            for fy in (-78, -66):
+                _capsule(screen, pal["skin"] if is_hero else pal["metal"],
+                         sh, (bx + facing * 44, STAGE_Y + fy), 6)
+                pygame.draw.circle(screen, pal["fist"],
+                                   (bx + facing * 44, STAGE_Y + fy), 7)
+        else:                                   # 打击：全伸展 + 速度线
+            reach = 52 if heavy else 44
+            ft = (bx + facing * reach, STAGE_Y - 80)
+            _capsule(screen, pal["skin"] if is_hero else pal["metal"], sh, ft, 7)
+            pygame.draw.circle(screen, pal["fist"], ft, fist_r)
+            for ly in (-8, 0, 8):
+                pygame.draw.line(screen, (200, 200, 215),
+                                 (ft[0] + facing * 14, STAGE_Y - 80 + ly),
+                                 (ft[0] + facing * 30, STAGE_Y - 80 + ly), 2)
+    elif f.state == S_STARTUP:                  # 蓄力：拳收到耳边
+        ft = (bx + facing * 4, STAGE_Y - 96)
+        _capsule(screen, pal["skin"] if is_hero else pal["metal"], sh, ft, 7)
+        pygame.draw.circle(screen, pal["fist"], ft, fist_r)
+        _capsule(screen, pal["skin"] if is_hero else pal["metal"],
+                 sh_back, (bx - facing * 10, by - 24), 6)  # 后臂张开平衡
+    elif f.state == S_RECOVERY:                 # 收招：拳下垂 + 冷汗
+        ft = (bx + facing * 34, STAGE_Y - 66)
+        _capsule(screen, pal["skin"] if is_hero else pal["metal"], sh, ft, 7)
+        pygame.draw.circle(screen, pal["fist"], ft, fist_r)
+        _sweat(screen, (head_c[0] + facing * 20, head_c[1] - 14))
+    elif f.blocking or f.state == S_BLOCKSTUN:  # 防御：双臂交叠 + 护盾
+        for fy in (-84, -62):
+            _capsule(screen, pal["skin"] if is_hero else pal["metal"],
+                     (bx + facing * 10, by - 20),
+                     (bx + facing * 18, STAGE_Y + fy), 6)
+        shield = pygame.Surface((46, 100), pygame.SRCALPHA)
+        pygame.draw.arc(shield, (90, 220, 230, 160),
+                        (4, 4, 38, 92), -1.1, 1.1, 4)
+        screen.blit(shield, (bx + facing * 26 - (0 if facing > 0 else 46),
+                             STAGE_Y - 100))
+        if f.state == S_BLOCKSTUN and f.frames_left > 0:  # 防住瞬间火花
+            _star(screen, (140, 230, 255),
+                  (bx + facing * 34, STAGE_Y - 76), 9, 6)
+    elif f.state == S_HITSTUN:                  # 受击：后仰 + 迸射星
+        for fy, dx2 in ((-92, -18), (-64, -12)):
+            _capsule(screen, pal["skin"] if is_hero else pal["metal"],
+                     sh, (bx + facing * dx2, STAGE_Y + fy), 6)
+        for k in range(3):
+            ang = 2.2 + k * 0.5
+            sx = head_c[0] + facing * (14 + k * 7) * math.cos(ang)
+            sy = head_c[1] - 10 - k * 6
+            pygame.draw.line(screen, (255, 200, 90),
+                             (sx, sy), (sx + facing * 8, sy - 6), 2)
+    else:                                       # 待机：护架 + 后手收腰
+        ft = (bx + facing * 12, STAGE_Y - 88)
+        _capsule(screen, pal["skin"] if is_hero else pal["metal"], sh, ft, 7)
+        pygame.draw.circle(screen, pal["fist"], ft, 7)
+        _capsule(screen, pal["skin"] if is_hero else pal["metal"],
+                 sh_back, (bx - facing * 6, by - 8), 6)
+
+    # 命中判定的白色闪光描边（保留原有视觉语言）
+    if f.state == S_ACTIVE:
+        pygame.draw.rect(screen, WHITE,
+                         (bx - 27, STAGE_Y - 132, 54, 130), 3,
+                         border_radius=14)
+
+    _name_tag(screen, font, f, px, STAGE_Y - 156)
+
+
+def _name_tag(screen, font, f, cx, y):
+    """头顶名牌胶囊。"""
+    if f.move:
+        txt = f"{f.name} · {f.move.name} {STATE_NAMES[f.state]} {f.frames_left}帧"
+    elif f.blocking:
+        txt = f"{f.name} · 防御中"
+    else:
+        txt = f"{f.name} · 待机" if f.hp > 0 else f"{f.name} · K.O.!"
+    surf = font.render(txt, True, WHITE)
+    pad = 8
+    tag = pygame.Rect(0, 0, surf.get_width() + pad * 2, surf.get_height() + 6)
+    tag.center = (int(cx), int(y - surf.get_height() // 2))
+    pygame.draw.rect(screen, (28, 28, 40), tag, border_radius=tag.height // 2)
+    screen.blit(surf, (tag.x + pad, tag.y + 3))
 
 
 def draw(screen, env, font, big, result, tps, paused):
@@ -103,8 +400,8 @@ def draw(screen, env, font, big, result, tps, paused):
     screen.blit(t, (W // 2 - t.get_width() // 2, 36))
 
     # 角色
-    draw_fighter(screen, font, p, +1)
-    draw_fighter(screen, font, e, -1)
+    draw_fighter(screen, font, p, +1, t=env.t)
+    draw_fighter(screen, font, e, -1, t=env.t)
 
     # 距离仪表（立回核心！）
     x0, x1, y = 220, W - 220, H - 90
