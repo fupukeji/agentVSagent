@@ -234,6 +234,24 @@
   .fvbot { display:inline-block; font-size:11.5px; border:1px solid var(--line);
            border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
   .fvbot b { margin-left:5px; }
+
+  /* 王者殿堂 */
+  .champ { display:flex; align-items:center; gap:14px; padding:14px 16px; margin-bottom:10px;
+           background:linear-gradient(135deg, rgba(255,209,102,.14), rgba(255,122,54,.07));
+           border:1px solid rgba(255,209,102,.55); border-radius:14px; cursor:pointer;
+           box-shadow:0 0 24px rgba(255,209,102,.12); }
+  .champ:hover { border-color:var(--gold); }
+  .champ .crown { position:absolute; top:-12px; left:18px; font-size:24px;
+                  filter:drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+  .champ .cw { font-size:17px; font-weight:800; }
+  .champ .cs { color:var(--sub); font-size:12px; margin-top:3px; }
+  .champ { position:relative; }
+  .restrow { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:9px;
+             cursor:pointer; font-size:13px; }
+  .restrow:hover { background:var(--panel2); }
+  .restrow .rr { color:var(--sub); width:38px; font-size:12px; flex-shrink:0; }
+  .restrow .re { color:var(--gold); font-weight:700; width:56px; text-align:right; }
+  .tt { font-size:11px; border-radius:6px; padding:1px 7px; white-space:nowrap; }
   .mini .nm2 { font-size:13px; font-weight:700; max-width:88px; overflow:hidden;
                text-overflow:ellipsis; white-space:nowrap; }
   .mini .sc2 { font-size:11px; color:var(--sub); margin-top:1px; }
@@ -304,8 +322,13 @@
 
     <div class="aside">
       <section>
-        <h2>🧑‍🤝‍🧑 选手墙 <span class="hint">综合分 = 胜率65+速度20+稳定15</span></h2>
+        <h2>🏛 王者殿堂 <span class="hint">C 位只属于高手——榜首登基，前八登堂</span></h2>
+        <div id="hall-champ"></div>
         <div class="wall" id="wall"></div>
+        <div class="row" style="margin-top:12px">
+          <input type="text" id="wall-search" placeholder="🔍 搜索全部选手 / 玩家（含未登堂者）…" style="flex:1">
+        </div>
+        <div id="wall-rest" style="margin-top:8px;max-height:300px;overflow-y:auto"></div>
       </section>
       <section>
         <div class="callout" style="margin:0"><b>全自动竞技场</b>：
@@ -774,33 +797,90 @@ async function fillTotals() {
   });
 }
 
-function renderWall(agents) {
-  $('wall').innerHTML = agents.map(a => {
+/* ---------- 王者殿堂（规模友好：榜首 C 位 + 前八登堂 + 其余可搜索名单） ---------- */
+const ELO_TITLES = [
+  [1700, '👑 王者', '#ffd166'], [1620, '🌟 宗师', '#ff9a5b'],
+  [1550, '💎 大师', '#5ad7e6'], [1480, '⚔️ 精英', '#b197fc'],
+  [1400, '🛡️ 挑战者', '#8b95a7'], [-1e9, '🌱 新星', '#69db7c'],
+];
+function eloTitle(elo) { return ELO_TITLES.find(t => elo >= t[0]); }
+
+function renderWall(lb) {
+  const agents = window.AGENTS || [];
+  const bySpec = {}; agents.forEach(a => bySpec[a.spec] = a);
+  let ordered = agents;
+  if (lb && lb.ready) {
+    ordered = lb.board.map(b => bySpec[b.spec]).filter(Boolean);
+    const seen = new Set(ordered.map(a => a.id));
+    ordered = ordered.concat(agents.filter(a => !seen.has(a.id)));   // 未入榜者排后
+  }
+  window.HALL = ordered;
+  const top = ordered.slice(0, 8);
+  // —— C 位：榜首 ——
+  const c0 = top[0];
+  if (c0) {
+    const b0 = lb && lb.ready ? lb.board[0] : null;
+    const tt = b0 ? eloTitle(b0.elo) : null;
+    const s = c0.score && c0.score.scores;
+    $('hall-champ').innerHTML = `
+      <div class="champ" onclick="openFighter('${c0.id}')">
+        <div class="crown">👑</div>
+        <canvas class="pcva" width="76" height="76" id="champ-ava"></canvas>
+        <div style="flex:1;min-width:0">
+          <div class="cw">${c0.name}
+            ${tt ? `<span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}55">${tt[1]}</span>` : ''}</div>
+          <div class="cs">${c0.owner_name ? '玩家 @' + c0.owner_name + ' · ' : ''}${b0 ? b0.w + '胜' + b0.l + '负' + b0.d + '平' : (c0.note || '')}</div>
+          ${s ? `<div class="sc2" style="margin-top:5px"><b style="font-size:16px">${s.total}</b> 分 · ${b0 ? 'Elo <b style="color:var(--gold)">' + b0.elo.toFixed(0) + '</b>' : ''}</div>` : ''}
+        </div>
+      </div>`;
+    drawPortrait($('champ-ava'), c0.skin,
+      !c0.skin && ['强化学习', '玩家手写'].some(k => (c0.note || '').includes(k)));
+  } else $('hall-champ').innerHTML = '';
+  // —— 登堂：第 2~8 名 ——
+  $('wall').innerHTML = top.slice(1).map((a, i) => {
+    const rank = i + 2, b = lb && lb.ready ? lb.board[i + 1] : null;
     const s = a.score && a.score.scores;
     const skinJson = JSON.stringify(a.skin || null).replace(/'/g, "&#39;");
     const heroDef = a.skin ? (a.skin.base === 'hero')
       : ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k));
-    let seg = '';
-    if (s) {
-      const segs = [[s.win_pts, 65, '#ff7a36'], [s.speed_pts, 20, '#5ad7e6'],
-                    [s.stab_pts, 15, '#b197fc']];
-      seg = `<div class="seg">` + segs.map(([v, m, col]) =>
-        `<i style="width:${(v / m * 100).toFixed(1)}%;background:${col}"></i>`).join('') +
-        `</div>`;
-    }
-    return `<div class="mini" onclick="openFighter('${a.id}')" title="点击查看选手详情">
+    const tt = b ? eloTitle(b.elo) : null;
+    return `<div class="mini" onclick="openFighter('${a.id}')" title="点击查看详情">
+      <span style="color:var(--sub);font-size:12px;font-weight:700;width:16px">${rank}</span>
       <canvas class="pcva" width="48" height="48" data-skin='${skinJson}'
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <div style="flex:1;min-width:0">
-        <div class="nm2" title="${a.name}">${a.name}</div>
-        <div class="sc2">${a.owner_name ? `@${a.owner_name} · ` : ''}${s ? `<b>${s.total}</b> 分 · 胜 ${Math.round(s.win_rate * 100)}%` : '评分排队中…'}</div>
-        ${seg}
+        <div class="nm2" title="${a.name}">${a.name}${tt ? ` <span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}44">${tt[1]}</span>` : ''}</div>
+        <div class="sc2">${b ? 'Elo ' + b.elo.toFixed(0) + ' · ' : ''}${s ? s.total + ' 分' : '评分排队中…'}</div>
       </div>
     </div>`;
   }).join('');
   document.querySelectorAll('.pcva').forEach(cv =>
     drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
+  renderRest();
 }
+
+function renderRest() {
+  const q = ($('wall-search').value || '').trim().toLowerCase();
+  const rest = (window.HALL || []).slice(8).filter(a =>
+    !q || a.name.toLowerCase().includes(q)
+    || (a.owner_name || '').toLowerCase().includes(q));
+  $('wall-rest').innerHTML = rest.length ? rest.map((a, i) => {
+    const skinJson = JSON.stringify(a.skin || null).replace(/'/g, "&#39;");
+    const heroDef = a.skin ? (a.skin.base === 'hero') : false;
+    return `<div class="restrow" onclick="openFighter('${a.id}')">
+      <span class="rr">第 ${i + 9} 名</span>
+      <canvas class="pcva" width="34" height="34" data-skin='${skinJson}'
+        data-hero="${heroDef ? 1 : 0}"></canvas>
+      <span style="font-weight:700">${a.name}</span>
+      <span class="vs">${a.owner_name ? '@' + a.owner_name : ''}</span>
+      <span class="re" style="margin-left:auto">${a.score ? a.score.scores.total + '分' : ''}</span>
+    </div>`;
+  }).join('')
+  : `<div class="tinfo" style="padding:8px">${q ? '没有匹配「' + q + '」的选手' : '当前全部选手都在殿堂之上'}</div>`;
+  document.querySelectorAll('.pcva').forEach(cv =>
+    drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
+}
+$('wall-search').oninput = renderRest;
 
 const MP = { page: 1, per: 8, all: [], total: 0 };
 
@@ -852,7 +932,7 @@ async function loadAll() {
       api('/api/matches?limit=300'), api('/api/stats')]);
     MP.all = matches; MP.total = stats.matches;
     window.AGENTS = agents;
-    renderWall(agents); renderMatches();
+    renderWall(lb); renderMatches();
     renderLeaderboard(lb);
     $('st-agents').textContent = stats.agents;
     $('st-matches').textContent = stats.matches;
