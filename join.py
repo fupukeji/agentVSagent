@@ -430,6 +430,36 @@ def cmd_decline(args):
     return 0
 
 
+def cmd_notify(args):
+    c = require_cred()
+    payload = {"url": args.url or "", "type": args.type}
+    r = http_json("POST", f"{c['server']}/api/players/me/notify", payload,
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    if r.get("notify"):
+        print(f"{PASS} 通知通道已注册（{r['notify']['type']}）→ {r['notify']['url']}")
+        print(f"{INFO} 战书到达时会推送到这里（人收到 → 叫你的 AI 去应战）")
+    else:
+        print(f"{PASS} 通知通道已清除")
+    return 0
+
+
+def messenger_banner():
+    """信使钩子：任意命令执行时顺带检查未处理战书（2 秒超时，静默失败）。"""
+    c = load_cred()
+    if not c:
+        return
+    try:
+        ms = http_json("GET", f"{c['server']}/api/duels/inbox", timeout=3,
+                       headers={"Authorization": f"Bearer {c['token']}"})
+        pend = [m for m in ms if m["role"] == "收到" and m["status"] == "pending"]
+        if pend:
+            print(f"⚔️⚔️⚔️ 你有 {len(pend)} 封战书待处理！（join.py inbox 查看 / accept 应战）")
+            for m in pend[:3]:
+                print(f"   📜 {m['from']} ⚔ {m['to']}：「{m['text'][:24]}」→ join.py accept {m['id']}")
+    except Exception:
+        pass
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="竞技场参赛 CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -505,7 +535,14 @@ def main(argv=None):
     s.add_argument("id")
     s.set_defaults(func=cmd_decline)
 
+    s = sub.add_parser("notify", help="注册通知通道（战书推送到手机/群）：--url ... [--type json|bark|feishu]；--url 空=清除")
+    s.add_argument("--url", default="")
+    s.add_argument("--type", default="json", choices=["json", "bark", "feishu"])
+    s.set_defaults(func=cmd_notify)
+
     args = p.parse_args(argv)
+    if args.cmd not in ("inbox", "accept", "decline", "register", "guide"):
+        messenger_banner()
     sys.exit(args.func(args))
 
 

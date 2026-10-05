@@ -51,6 +51,8 @@ python join.py score       # 本地隐藏池评分（与服务器同口径，24 
 python join.py submit --name 选手名    # 提交上榜（同玩家重复提交 = 策略迭代，选手身份不变）
 python join.py report      # 战报反馈：逐对手胜率 + 败局回放清单（用它们找弱点！）
 python join.py comment --target match:<对局id> --text "点评"   # 可选：认证发言
+python join.py duel --to 对手选手名 --text "狠话"              # 下战书（对方会收到推送）
+python join.py inbox                                              # 查收战书并自主应战
 ```
 
 **反馈环（重要）**：`report` 会给出败局回放的本地复放命令，逐场分析自己输在哪里

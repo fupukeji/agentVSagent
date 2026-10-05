@@ -501,6 +501,55 @@ def api_tournament(body: dict | None = None):
     return data
 
 
+def _notify(player, title, body):
+    """向玩家配置的通知通道推送（bark/飞书/通用 JSON webhook）。尽力而为，不阻塞。"""
+    cfg = player.get("notify")
+    if not cfg or not cfg.get("url"):
+        return
+    def _send():
+        url, typ = cfg["url"], cfg.get("type", "json")
+        try:
+            import urllib.request as _u
+            if typ == "bark":
+                q = urllib.parse.urlencode({"title": title, "body": body, "group": "arena"})
+                sep = "&" if "?" in url else "?"
+                _u.urlopen(_u.Request(f"{url}{sep}{q}"), timeout=4).read()
+            elif typ == "feishu":
+                data = json.dumps({"msg_type": "text",
+                                   "content": {"text": f"{title}\n{body}"}}).encode()
+                req = _u.Request(url, data=data,
+                                 headers={"Content-Type": "application/json"})
+                _u.urlopen(req, timeout=4).read()
+            else:   # 通用 JSON webhook（Discord/Slack 中继、自建服务）
+                data = json.dumps({"event": "duel", "title": title,
+                                   "body": body}, ensure_ascii=False).encode()
+                req = _u.Request(url, data=data,
+                                 headers={"Content-Type": "application/json"})
+                _u.urlopen(req, timeout=4).read()
+            print(f"[notify] ✅ 已推送 → {player['name']} ({typ})", flush=True)
+        except Exception as ex:  # noqa: BLE001
+            print(f"[notify] ⚠️ 推送失败 {player['name']}: {ex}", flush=True)
+    threading.Thread(target=_send, daemon=True).start()
+
+
+@app.post("/api/players/me/notify")
+def api_set_notify(body: dict, authorization: str = Header(None)):
+    """注册/清除我的通知通道：{url, type: json|bark|feishu}；url 为空则清除。"""
+    p = _auth_bearer(authorization)
+    url = (body.get("url") or "").strip()
+    typ = body.get("type", "json")
+    if url and typ not in ("json", "bark", "feishu"):
+        raise HTTPException(400, "type 只能是 json/bark/feishu")
+    players = load_players()
+    me = next(x for x in players if x["id"] == p["id"])
+    if url:
+        me["notify"] = {"url": url, "type": typ}
+    else:
+        me.pop("notify", None)
+    save_players(players)
+    return {"player": p["name"], "notify": me.get("notify")}
+
+
 # ---------------- 战书（玩家约战） ----------------
 def _load_duels():
     p = DATA / "duels.json"
@@ -564,6 +613,12 @@ def api_duel_send(body: dict, authorization: str = Header(None)):
     with LOCK:
         _save_duels(_load_duels() + [d])
     print(f"[duel] 📜 战书: {me['name']} → {target['name']} 「{text}」", flush=True)
+    # 通知对方：已注册通知通道则推送；无论是否注册，下次其 Agent 跑任意命令都会看到信使横幅
+    tp = player_by_id(target.get("owner"))
+    if tp:
+        _notify(tp, f"⚔️ 战书：{me['name']} 向你下书！",
+                f"「{text}」\n应战: join.py accept {d['id']} · 拒战: join.py decline {d['id']}"
+                f"（7 天内有效，Bo{games}）")
     return _duel_public(d)
 
 
@@ -629,6 +684,11 @@ def api_duel_accept(duel_id: str, authorization: str = Header(None)):
     winner = d["from"]["fighter"] if aw > bw else (
         d["to"]["fighter"] if bw > aw else None)
     print(f"[duel] ⚔️ 决斗完成: {d['result']}（胜者 {winner}）", flush=True)
+    fp = player_by_id(d["from"].get("pid"))
+    if fp:
+        _notify(fp, f"⚔️ 决斗结果：{d['result']}",
+                f"你下的战书已决出胜负，胜者 {winner or '平局'}。"
+                f"官网恩怨台可看决胜局回放。")
     return {**_duel_public(d), "winner": winner or "平"}
 
 
