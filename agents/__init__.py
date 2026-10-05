@@ -57,7 +57,9 @@ def _load_file_agent(path: str) -> BaseAgent:
     agent = agent_cls()
     if not hasattr(agent, "act"):
         raise ValueError(f"{path} 的 Agent 缺少 act 方法")
-    agent.name = getattr(agent, "name", os.path.basename(path))
+    # 未自定义名字（继承了基类默认值）时用文件名
+    if getattr(agent, "name", None) in (None, "agent"):
+        agent.name = os.path.splitext(os.path.basename(path))[0]
     return agent
 
 

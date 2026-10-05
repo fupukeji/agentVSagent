@@ -110,3 +110,28 @@ class WindowAgent(BaseAgent):
         d = self.agent.info()
         d["window"] = self.window
         return d
+
+
+if __name__ == "__main__":
+    # 决策窗口演示（运行：python -m agents.base）
+    # 1) 窗口版 ppo vs 原生 ppo 互打（左右侧各 10 场）
+    # 2) 窗口宽度退化曲线（vs footsies 各 10 场）
+    from agents import load_agent
+    from arena import play_one
+
+    ppo = load_agent("ppo")
+    windowed = WindowAgent(ppo, window=15)
+    footsies = load_agent("footsies")
+
+    print("== 窗口版 ppo(w15) vs 原生 ppo 互打（各侧10场） ==")
+    for left, right in ((windowed, ppo), (ppo, windowed)):
+        w = sum(1 for s in range(10)
+                if play_one(left, right, s)[0]["winner"] == 0)
+        print(f"  {left.name}(左) vs {right.name}(右): 左侧 {w}/10")
+
+    print("== 窗口宽度退化曲线（vs footsies 各10场，w=1 应等价原生） ==")
+    for win_w in (1, 3, 5, 8, 15):
+        wa = WindowAgent(ppo, window=win_w)
+        w = sum(1 for s in range(10)
+                if play_one(wa, footsies, s)[0]["winner"] == 0)
+        print(f"  w={win_w:2d}: {w}/10")
