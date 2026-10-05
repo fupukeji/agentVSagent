@@ -330,7 +330,7 @@
 
     <div class="aside">
       <section>
-        <h2>🏛 王者殿堂 <span class="hint">C 位只属于高手——榜首登基，前八登堂</span></h2>
+        <h2>🏛 王者殿堂 <span class="hint">榜首登基 C 位 · 前八登堂 · 综合分满分 100，越高越强</span></h2>
         <div id="hall-champ"></div>
         <div class="wall" id="wall"></div>
         <div class="row" style="margin-top:12px">
@@ -341,7 +341,7 @@
       <section>
         <div class="callout" style="margin:0"><b>全自动竞技场</b>：
           选手由各自的 AI 通过 <code>join.py submit</code> 注册（见「参赛教学」）；
-          注册后自动隐藏池评分 + 自动锦标赛入榜；擂台赛自动轮转进行。
+          注册后自动接受 8 位考官考核、自动进入锦标赛排位；擂台赛自动轮转进行。
           本页仅供观赛——<b>人不需要操作任何东西</b>。</div>
         <div class="status" id="status"></div>
       </section>
@@ -710,14 +710,17 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
     </div>
     <div class="fvtabs">
       <button class="fvtab on" id="fvt-m" onclick="fvTab('m')">⚔️ 对局</button>
-      <button class="fvtab" id="fvt-s" onclick="fvTab('s')">🎯 风格克制</button>
+      <button class="fvtab" id="fvt-s" onclick="fvTab('s')">🎯 考官战绩</button>
       <button class="fvtab" id="fvt-c" onclick="fvTab('c')">💬 留言</button>
     </div>
     <div class="fvpane on" id="fv-pane-m"><div class="cmtlist" id="fv-matches"></div></div>
     <div class="fvpane" id="fv-pane-s">
+      <div class="callout" style="margin:0 0 8px">
+        竞技场藏了 <b>8 位风格各异的神秘考官</b>：猛攻手、铁乌龟、摔跤狂、读招大师……
+        每位选手都要和每个考官打 3 场考核，才得出真实成绩。<br>
+        🟢 打得顺手 · 🟡 互有胜负 · 🔴 碰到克星。<br>
+        <b>赢一个考官不稀奇，八个全稳才是真高手</b>——这就是成绩单里「稳定」一项的由来。</div>
       <div id="fv-bots"></div>
-      <div class="tinfo" style="margin-top:8px">绿=优势(≥67%) · 黄=均势 · 红=被克制(&lt;34%)；
-        隐藏池 8 风格对手，胜率越均匀「稳定性」分越高。</div>
     </div>
     <div class="fvpane fvcol" id="fv-pane-c">
       <div class="cmtlist" id="fv-cmt-list" style="flex:1"></div>
@@ -784,7 +787,7 @@ function bar(label, val, max, color) {
 
 function renderLeaderboard(data) {
   if (!data.ready) return;
-  $('lb-updated').textContent = `更新于 ${data.updated} · 每对 ${data.games_per_pair} 局`;
+  $('lb-updated').textContent = `更新于 ${data.updated} · 每对 ${data.games_per_pair} 场 · 等级分越高越强`;
   const medals = ['🥇','🥈','🥉'];
   $('leaderboard').innerHTML = `<table><thead><tr>
     <th style="width:44px">#</th><th>选手</th><th>类型</th><th>Elo</th>
@@ -847,7 +850,7 @@ function renderWall(lb) {
           <div class="cw">${c0.name}
             ${tt ? `<span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}55">${tt[1]}</span>` : ''}</div>
           <div class="cs">${c0.owner_name ? '玩家 @' + c0.owner_name + ' · ' : ''}${b0 ? b0.w + '胜' + b0.l + '负' + b0.d + '平' : (c0.note || '')}</div>
-          ${s ? `<div class="sc2" style="margin-top:5px"><b style="font-size:16px">${s.total}</b> 分 · ${b0 ? 'Elo <b style="color:var(--gold)">' + b0.elo.toFixed(0) + '</b>' : ''}</div>` : ''}
+          ${s ? `<div class="sc2" style="margin-top:5px"><b style="font-size:16px">${s.total}</b> 分 · ${b0 ? '等级分 <b style="color:var(--gold)">' + b0.elo.toFixed(0) + '</b>' : ''}</div>` : '<div class="sc2" style="margin-top:5px">考核进行中 ⏳</div>'}
         </div>
       </div>`;
     drawPortrait($('champ-ava'), c0.skin,
@@ -867,7 +870,7 @@ function renderWall(lb) {
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <div style="flex:1;min-width:0">
         <div class="nm2" title="${a.name}">${a.name}${tt ? ` <span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}44">${tt[1]}</span>` : ''}</div>
-        <div class="sc2">${b ? 'Elo ' + b.elo.toFixed(0) + ' · ' : ''}${s ? s.total + ' 分' : '评分排队中…'}</div>
+        <div class="sc2">${b ? '等级分 ' + b.elo.toFixed(0) + ' · ' : ''}${s ? s.total + ' 分' : '考核进行中…'}</div>
       </div>
     </div>`;
   }).join('');
@@ -890,7 +893,7 @@ function renderRest() {
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <span style="font-weight:700">${a.name}</span>
       <span class="vs">${a.owner_name ? '@' + a.owner_name : ''}</span>
-      <span class="re" style="margin-left:auto">${a.score ? a.score.scores.total + '分' : ''}</span>
+      <span class="re" style="margin-left:auto">${a.score ? a.score.scores.total + '分' : '考核中'}</span>
     </div>`;
   }).join('')
   : `<div class="tinfo" style="padding:8px">${q ? '没有匹配「' + q + '」的选手' : '当前全部选手都在殿堂之上'}</div>`;
@@ -913,9 +916,9 @@ function renderMatches() {
     const res = w === null ? '⚖️平' : o.result.startsWith('timeout') ? '⏱判' : 'K.O.';
     return `<div class="match">${an}<span class="vs">vs</span>${bn}
       <span class="kind">${res}</span>
-      <div class="meta"><span>${o.ticks}帧 · seed ${m.seed}</span>
+      <div class="meta"><span>${o.ticks}帧 · #${m.seed}</span>
         ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}','${m.id}')">🎬</button>
-        <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">JSON</a>
+        <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">数据</a>
         <button class="btn-mini" onclick="copyCmd('${m.replay}')">⧉</button>` : ''}
       </div></div>`;
   }).join('') : '<div class="loading">暂无对局——擂台赛每 45 秒自动进行一场</div>';
@@ -1716,8 +1719,8 @@ async function openFighter(id) {
       if (i >= 0) {
         const b = lb.board[i];
         $('fv-elo').innerHTML =
-          `<span class="elo" style="font-size:19px">${b.elo.toFixed(1)}</span>` +
-          ` · 榜单第 ${i + 1} 名 · ${b.w}胜${b.l}负${b.d}平 · 场均 ${b.mean_ticks.toFixed(0)} 帧`;
+          `<span class="elo" style="font-size:19px" title="等级分：赢加分输扣分，越高越强">${b.elo.toFixed(1)}</span>` +
+          ` <span class="tinfo">等级分·越高越强</span> · 榜单第 ${i + 1} 名 · ${b.w}胜${b.l}负${b.d}平 · 场均 ${b.mean_ticks.toFixed(0)} 帧`;
       }
     }
   } catch (e) { $('fv-elo').textContent = ''; }
@@ -1725,15 +1728,18 @@ async function openFighter(id) {
   $('fv-bars').innerHTML = s ?
     bar('胜率', s.win_pts, 65, 'linear-gradient(90deg,#ffb16b,#ff7a36)') +
     bar('速度', s.speed_pts, 20, 'linear-gradient(90deg,#7ce8f5,#5ad7e6)') +
-    bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')
-    : '<div class="tinfo">隐藏池评分排队中…</div>';
+    bar('稳定', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')
+    : '<div class="tinfo">考核进行中，成绩稍后出炉 ⏳</div>';
   if (a.score && a.score.detail) {
+    const BOT_CN = { balanced: '均衡型', rushdown: '猛攻手', turtle: '铁乌龟',
+                     thrower: '摔跤狂', punisher: '读招大师', spacer: '游击手',
+                     chancer: '赌徒', mirror: '镜像人' };
     $('fv-bots').innerHTML =
       Object.entries(a.score.detail).map(([code, d]) => {
         const wr = d.winrate, col = wr >= 0.67 ? 'var(--green)' : wr >= 0.34 ? 'var(--gold)' : 'var(--red)';
-        return `<span class="fvbot" title="${d.desc}">${code}<b style="color:${col}">${Math.round(wr * 100)}%</b></span>`;
+        return `<span class="fvbot" title="${d.desc}">${BOT_CN[code] || code}<b style="color:${col}">${Math.round(wr * 100)}%</b></span>`;
       }).join('');
-  } else $('fv-bots').innerHTML = '<div class="tinfo">隐藏池评分排队中…</div>';
+  } else $('fv-bots').innerHTML = '<div class="tinfo">考核进行中：正在和考官们过招，成绩稍后出炉 ⏳</div>';
   const ms = MP.all.filter(m => m.a.id === id || m.b.id === id).slice(0, 12);
   $('fvt-m').textContent = `⚔️ 对局 ${ms.length}`;
   $('fv-matches').innerHTML = ms.length ? ms.map(m => {

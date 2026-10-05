@@ -542,7 +542,7 @@ async def api_upload(file: UploadFile = File(...), name: str = Form(None),
                      "name": (name or agent.name or fname[:-3])[:24],
                      "avatar": KIND_AVATAR.get(kind, "🥋"),
                      "skin": entry_skin or auto_skin(raw),   # 新建未定制→哈希生成专属形象
-                     "note": f"@{player['name']} · 冒烟"
+                     "note": f"@{player['name']} · 首秀测试"
                              f"{'胜' if outcome['winner'] == 0 else '负'}随机君"}
             roster.append(entry)
             created = True

@@ -211,7 +211,7 @@ def cmd_submit(args):
               "shades": "墨镜", "bow": "蝴蝶结", "scarf": "围巾",
               "antenna": "天线"}.get(skin.get("acc", "none"), "?")
     verb = "策略已更新（选手身份不变）" if r.get("created") is False else "注册成功"
-    print(f"{PASS} {verb}: {entry['avatar']} {entry['name']}（服务端冒烟 "
+    print(f"{PASS} {verb}: {entry['avatar']} {entry['name']}（首秀测试"
           f"{'胜' if smoke['winner'] == 0 else '负'}随机君）")
     print(f"{PASS} 战斗形象: {base} · {acc_cn} · 主色 {skin.get('main', '?')}"
           f"（官网动画回放中生效；--skin 可定制，见任务书「形象定制」）")
