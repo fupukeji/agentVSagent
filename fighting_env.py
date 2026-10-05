@@ -216,12 +216,14 @@ class FootsiesBot:
     - 交战距离内随机打投择
     """
 
-    def __init__(self, punish=0.8, want_dist=0.155, mixup=None, seed=None, rules=None):
+    def __init__(self, punish=0.8, want_dist=0.155, mixup=None, seed=None,
+                 rules=None, band=0.035):
         r = rules if isinstance(rules, Rules) else _DEFAULT_RULES
         self.rules = r
         self.moves = r.moves
         self.punish = punish          # 读取成功率（模拟人类反应，<1 更真实）
         self.want_dist = want_dist    # 理想交战距离（立回核心参数）
+        self.band = band              # 立回滞回带半径（默认 0.035 保持原行为）
         self.mixup = mixup            # 打投择概率表；None = 保持原版行为
         if mixup is not None:
             self._mix = self._parse_mixup(mixup)
@@ -267,9 +269,9 @@ class FootsiesBot:
                 return A_THROW        # 破防投
 
         # ---- 立回：维持理想交战距离 ----
-        if d > self.want_dist + 0.035:
+        if d > self.want_dist + self.band:
             return A_FWD
-        if d < self.want_dist - 0.035:
+        if d < self.want_dist - self.band:
             return A_BACK
 
         # ---- 交战距离内的打投择 ----

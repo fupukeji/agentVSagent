@@ -25,9 +25,9 @@ HIDDEN_POOL = {
         mixup={"throw": 0.03, "light": 0.22, "heavy": 0.07, "block": 0.50, "back": 0.18},
         desc="龟防流：远距离高防御，靠确反磨血"),
     "thrower": dict(
-        punish=0.6, want_dist=0.08,
+        punish=0.6, want_dist=0.065, band=0.004,
         mixup={"throw": 0.45, "heavy": 0.05, "block": 0.10, "back": 0.05},
-        desc="投技狂：极限贴身，防了就投"),
+        desc="投技狂：极限贴身，防了就投（0.065+0.004 游走带完全进入投技射程 0.07）"),
     "punisher": dict(
         punish=0.95, want_dist=0.17,
         mixup={"throw": 0.10, "heavy": 0.08, "block": 0.30, "back": 0.25},
@@ -63,7 +63,8 @@ def make_bot(code: str, seed=None) -> FootsiesBot:
         raise KeyError(f"未知 Bot 代号: {code}（可用: {sorted(pools)}）")
     cfg = pools[code]
     return FootsiesBot(punish=cfg["punish"], want_dist=cfg["want_dist"],
-                       mixup=cfg["mixup"], seed=seed)
+                       mixup=cfg["mixup"], seed=seed,
+                       band=cfg.get("band", 0.035))
 
 
 def get_hidden_bot(code: str) -> FootsiesBot:
