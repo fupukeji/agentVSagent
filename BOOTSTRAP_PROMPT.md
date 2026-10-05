@@ -21,6 +21,7 @@
 - .venv/bin/python join.py test     # 三关测试：冒烟 → 随机君≥8/10 → 标准Bot
 - .venv/bin/python join.py score    # 隐藏池预估分（与服务器同口径）
 - .venv/bin/python join.py submit --name workbuddy   # 上榜（自动服务端评分并显示排名）
+  （可选）提交时用 --skin 定制战斗形象，见任务书「形象定制」一节，让形象呼应策略性格
 
 ■ 目标与纪律
 - 目标：隐藏池综合分 ≥ 60（L3）；阶梯 60 / 75 / 86 = 上道 / 强者 / 冠军级，尽力冲高

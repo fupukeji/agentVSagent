@@ -79,11 +79,11 @@ def http_json(method, url, payload=None, timeout=300):
         die(f"服务器拒绝: {msg}")
 
 
-def http_upload(url, path, name):
-    """multipart 上传（纯标准库）。"""
+def http_upload(url, path, fields):
+    """multipart 上传（纯标准库）。fields: {字段名: 值}"""
     boundary = "----joinpy" + uuid.uuid4().hex
     body = b""
-    for k, v in ({"name": name or ""}).items():
+    for k, v in fields.items():
         body += (f"--{boundary}\r\nContent-Disposition: form-data; "
                  f"name=\"{k}\"\r\n\r\n{v}\r\n").encode()
     fn = os.path.basename(path)
@@ -192,11 +192,25 @@ def cmd_submit(args):
         default = "我的AI"
         name = input(f"选手名（回车取「{default}」）: ").strip() or default
     print(f"== 提交到 {server} ==")
-    r = http_upload(f"{server}/api/agents/upload", AGENT_FILE, name)
+    fields = {"name": name}
+    if args.skin:
+        try:
+            json.loads(args.skin)      # 早失败：JSON 非法立即提示
+        except Exception:
+            die(f"--skin 不是合法 JSON: {args.skin}")
+        fields["skin"] = args.skin
+    r = http_upload(f"{server}/api/agents/upload", AGENT_FILE, fields)
     entry = r["entry"]
     smoke = r["smoke_outcome"]
+    skin = entry.get("skin") or {}
+    base = "少年格斗家" if skin.get("base") == "hero" else "机器人"
+    acc_cn = {"none": "无饰品", "headband": "发带", "crown": "皇冠", "ahoge": "呆毛",
+              "shades": "墨镜", "bow": "蝴蝶结", "scarf": "围巾",
+              "antenna": "天线"}.get(skin.get("acc", "none"), "?")
     print(f"{PASS} 注册成功: {entry['avatar']} {entry['name']}（服务端冒烟 "
           f"{'胜' if smoke['winner'] == 0 else '负'}随机君）")
+    print(f"{PASS} 战斗形象: {base} · {acc_cn} · 主色 {skin.get('main', '?')}"
+          f"（官网动画回放中生效；--skin 可定制，见任务书「形象定制」）")
     if args.no_score:
         print(f"{INFO} 跳过服务端评分（--no-score）")
     else:
@@ -271,6 +285,8 @@ def main(argv=None):
     s = sub.add_parser("submit", help="提交上榜")
     s.add_argument("--name", default=None)
     s.add_argument("--server", default=DEFAULT_SERVER)
+    s.add_argument("--skin", default=None, metavar="JSON",
+                   help="战斗形象 JSON（base/main/trim/head/eye/acc），见任务书「形象定制」；缺省由策略哈希自动生成")
     s.add_argument("--no-score", action="store_true")
     s.set_defaults(func=cmd_submit)
 

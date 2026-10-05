@@ -194,6 +194,16 @@
   .tinfo { color:var(--sub); font-size:12px; white-space:nowrap; }
   .thead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .thead b { font-size:15px; }
+
+  /* 形象工坊 */
+  .ssrow { display:flex; align-items:center; gap:10px; }
+  .ssrow > span { width:82px; color:var(--sub); font-size:13px; flex-shrink:0; }
+  .ssrow input[type=color] { width:46px; height:30px; padding:2px; background:var(--panel2);
+    border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .pcva { background:transparent; }
+  .card { position:relative; }
+  .card .edit-skin { position:absolute; top:10px; right:10px; opacity:.75; }
+  .card:hover .edit-skin { opacity:1; }
 </style>
 </head>
 <body>
@@ -275,9 +285,11 @@
           </div>
           <div class="row" style="margin-top:10px">
             <input type="text" id="up-name" placeholder="选手名（留空取文件名）" style="flex:1">
+            <button class="big alt" id="up-skin" title="形象也可由你的 AI 用 join.py --skin 定制">🎨 定制形象</button>
             <button class="big" id="btn-upload">注册参赛</button>
             <input type="file" id="up-file" accept=".py" hidden>
           </div>
+          <div class="status" id="up-skin-note"></div>
           <div class="callout" style="margin-bottom:0;margin-top:12px">
             第一次参赛？先去 <b>「参赛教学」</b>页下载官方模板，10 行代码即可登场。
           </div>
@@ -619,6 +631,38 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
   </div>
 </div>
 
+<div class="modal" id="studio">
+  <div class="theater" style="max-width:640px">
+    <div class="thead"><b>🎨 形象工坊</b>
+      <button class="btn-mini" id="ss-close">✕ 关闭</button></div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <canvas id="ss-prev" width="230" height="300" style="background:#101018;border-radius:12px"></canvas>
+      <div style="flex:1;min-width:240px;display:grid;gap:10px;align-content:start">
+        <div class="ssrow"><span>体型</span>
+          <select id="ss-base"><option value="hero">少年格斗家</option><option value="robot">机器人</option></select></div>
+        <div class="ssrow"><span>主装/机身</span><input type="color" id="ss-main" value="#f8f8fa"></div>
+        <div class="ssrow"><span>饰边/腰带</span><input type="color" id="ss-trim" value="#ff7a36"></div>
+        <div class="ssrow"><span>发色/头色</span><input type="color" id="ss-head" value="#603c26"></div>
+        <div class="ssrow"><span>瞳色/光眼</span><input type="color" id="ss-eye" value="#282837"></div>
+        <div class="ssrow"><span>饰品</span>
+          <select id="ss-acc">
+            <option value="none">无</option><option value="headband">发带</option>
+            <option value="crown">皇冠</option><option value="ahoge">呆毛</option>
+            <option value="shades">墨镜</option><option value="bow">蝴蝶结</option>
+            <option value="scarf">围巾</option><option value="antenna">天线</option>
+          </select></div>
+        <div class="ssrow"><button class="big alt" id="ss-rand">🎲 随机一捏</button></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <span style="color:var(--sub);font-size:13px">保存到</span>
+      <select id="ss-target" style="flex:1"></select>
+      <button class="big" id="ss-save">保存形象</button>
+    </div>
+    <div class="status" id="ss-status"></div>
+  </div>
+</div>
+
 <footer><div class="wrap">
   <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
   本地 Docker 演示 · 对局/评分均在服务端可信执行 · 回放含逐帧 HP 轨迹防篡改校验 ·
@@ -700,12 +744,19 @@ function renderCards(agents) {
         ${bar('速度', s.speed_pts, 20, 'linear-gradient(90deg,#7ce8f5,#5ad7e6)')}
         ${bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')}
       </div>` : `<div class="noscore"><span class="spin">⏳</span> 隐藏池评分排队中…</div>`;
+    const skinJson = JSON.stringify(a.skin || null).replace(/'/g, "&#39;");
+    const heroDef = a.skin ? (a.skin.base === 'hero')
+      : ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k));
     return `<div class="card">
-      <div class="top"><div class="ava">${a.avatar}</div>
+      <button class="btn-mini edit-skin" onclick="openStudio('${a.id}')">🎨 形象</button>
+      <div class="top"><canvas class="pcva" width="64" height="64" data-skin='${skinJson}'
+        data-hero="${heroDef ? 1 : 0}"></canvas>
         <div><div class="nm">${a.name}</div><div class="nt">${a.note || ''}</div></div>
         <div class="pts"><div class="n">${s ? s.total : '–'}</div><div class="l">综合分</div></div>
       </div>${body}</div>`;
   }).join('');
+  document.querySelectorAll('.pcva').forEach(cv =>
+    drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
 }
 
 function renderMatches(ms) {
@@ -819,6 +870,95 @@ $('btn-tour').onclick = () => busy($('btn-tour'), async () => {
   } catch (e) { setStatus(e.message, 'err'); }
 });
 
+/* ---------- 形象工坊 ---------- */
+let PENDING_SKIN = null;
+let SS = { open: false, t: 0, last: 0 };
+const SS_DEFS = {
+  hero:  { main: '#f8f8fa', trim: '#ff7a36', head: '#603c26', eye: '#282837', acc: 'headband' },
+  robot: { main: '#acc4ce', trim: '#d6e8ec', head: '#acc4ce', eye: '#5ae6f0', acc: 'antenna' },
+};
+
+function ssSkin() {
+  return { base: $('ss-base').value, main: $('ss-main').value,
+           trim: $('ss-trim').value, head: $('ss-head').value,
+           eye: $('ss-eye').value, acc: $('ss-acc').value };
+}
+function ssLoad(skin) {
+  const s = skin || SS_DEFS.hero;
+  $('ss-base').value = s.base || 'hero';
+  const d = SS_DEFS[s.base || 'hero'];
+  $('ss-main').value = s.main || d.main;
+  $('ss-trim').value = s.trim || d.trim;
+  $('ss-head').value = s.head || d.head;
+  $('ss-eye').value = s.eye || d.eye;
+  $('ss-acc').value = s.acc || d.acc;
+}
+$('ss-base').onchange = () => ssLoad(SS_DEFS[$('ss-base').value]);
+
+async function openStudio(agentId) {
+  SS.open = true;
+  $('studio').classList.add('on');
+  let agents = [];
+  try { agents = await api('/api/agents'); } catch (e) {}
+  $('ss-target').innerHTML =
+    `<option value="__upload">🎨 本次上传的选手</option>` +
+    agents.map(a => `<option value="${a.id}"${a.id === agentId ? ' selected' : ''}>${a.name}</option>`).join('');
+  const cur = agents.find(a => a.id === agentId);
+  ssLoad(cur && cur.skin);
+  SS.last = performance.now();
+  requestAnimationFrame(ssLoop);
+}
+
+function ssLoop(ts) {
+  if (!SS.open) return;
+  SS.t += Math.max(0, (ts - SS.last) / 1000) * 15; SS.last = ts;
+  const c = $('ss-prev').getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#101018'; c.fillRect(0, 0, 230, 300);
+  const cyc = Math.floor(SS.t / 70) % 4;
+  const st = [IDLE, IDLE, STARTUP, ACTIVE][cyc];
+  c.setTransform(0.85, 0, 0, 0.85, 115 - 500 * 0.85, 236 - 350 * 0.85);
+  drawFighter(c, 0, [0.5, 100, st, false], 0, Math.floor(SS.t),
+              cyc === 3, false, ssSkin(), 500);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#8b95a7'; c.font = '11px -apple-system,sans-serif';
+  c.textAlign = 'center';
+  c.fillText(['待机 · 呼吸眨眼', '待机', '出招 · 蓄力', '重击 · 判定帧'][cyc], 115, 290);
+  c.textAlign = 'left';
+  requestAnimationFrame(ssLoop);
+}
+
+function closeStudio() { SS.open = false; $('studio').classList.remove('on'); }
+$('ss-close').onclick = closeStudio;
+$('ss-rand').onclick = () => {
+  const bases = ['hero', 'robot'];
+  const accs = ['none', 'headband', 'crown', 'ahoge', 'shades', 'bow', 'scarf', 'antenna'];
+  const rnd = () => '#' + Array.from({length: 3},
+    () => Math.floor(40 + Math.random() * 180).toString(16).padStart(2, '0')).join('');
+  ssLoad({ base: bases[Math.random() * 2 | 0], main: rnd(), trim: rnd(),
+           head: rnd(), eye: rnd(),
+           acc: accs[Math.random() * accs.length | 0] });
+};
+$('ss-save').onclick = () => busy($('ss-save'), async () => {
+  const skin = ssSkin(), target = $('ss-target').value;
+  try {
+    if (target === '__upload') {
+      PENDING_SKIN = skin;
+      $('up-skin-note').textContent =
+        `🎨 已定制形象：${skin.base === 'hero' ? '少年' : '机器人'} · `
+        + `${$('ss-acc').selectedOptions[0].textContent}（随下次上传生效）`;
+      $('up-skin-note').className = 'status ok';
+      closeStudio();
+    } else {
+      await api(`/api/agents/${target}/skin`, { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(skin) });
+      $('ss-status').textContent = '✓ 形象已保存';
+      closeStudio(); loadAll();
+    }
+  } catch (e) { $('ss-status').textContent = e.message; }
+});
+$('up-skin').onclick = () => openStudio(null);
+
 /* 上传 */
 const drop = $('drop');
 drop.onclick = () => $('up-file').click();
@@ -839,6 +979,7 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
   const fd = new FormData();
   fd.append('file', f);
   if ($('up-name').value.trim()) fd.append('name', $('up-name').value.trim());
+  if (PENDING_SKIN) fd.append('skin', JSON.stringify(PENDING_SKIN));
   try {
     const r = await api('/api/agents/upload', {method: 'POST', body: fd});
     const o = r.smoke_outcome;
@@ -846,6 +987,7 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
       + `（冒烟${o.winner === 0 ? '胜' : '负'}随机君）—— 可去演控台评分/约战`, 'ok');
     drop.textContent = '选择或拖入 .py 策略文件（含 class Agent）';
     drop.classList.remove('has'); drop._file = null; $('up-name').value = '';
+    PENDING_SKIN = null; $('up-skin-note').textContent = '';
     loadAll();
   } catch (e) { setStatus(e.message, 'err'); }
 });
@@ -890,18 +1032,18 @@ function tag(c, txt, cx, y) {
 
 function faceHero(c, hx, hy, fc, t, st, hp) {
   const fl = 3 * Math.sin(t * 0.25), bx = hx - fc*20;
-  c.fillStyle = HERO.ribbon; c.beginPath();
+  c.fillStyle = PAL.ribbon; c.beginPath();
   c.moveTo(bx, hy-8); c.lineTo(bx - fc*16, hy-12+fl); c.lineTo(bx - fc*12, hy-2+fl);
   c.closePath(); c.fill();
-  dot(c, HERO.hair, hx, hy-6, 19);
+  dot(c, PAL.hair, hx, hy-6, 19);
   for (const [dx, tip] of [[-13,10],[-4,14],[6,12],[14,10]]) {
-    c.fillStyle = HERO.hair; c.beginPath();
+    c.fillStyle = PAL.hair; c.beginPath();
     c.moveTo(hx+dx-4, hy-14); c.lineTo(hx+dx+4, hy-14); c.lineTo(hx+dx+fc*2, hy-14-tip);
     c.closePath(); c.fill();
   }
-  dot(c, HERO.skin, hx, hy+2, 17);
-  c.fillStyle = HERO.band; rr(c, hx-18, hy-12, 36, 7, 3); c.fill();
-  dot(c, HERO.band, hx + fc*10, hy-9, 4);
+  dot(c, PAL.skinT, hx, hy+2, 17);
+  c.fillStyle = PAL.band; rr(c, hx-18, hy-12, 36, 7, 3); c.fill();
+  dot(c, PAL.band, hx + fc*10, hy-9, 4);
   const ey = hy + 1, blink = (t % 160 < 6) && st === IDLE;
   for (const ex of [hx + fc*3 - 7, hx + fc*3 + 7]) {
     if (hp <= 0) {
@@ -916,11 +1058,11 @@ function faceHero(c, hx, hy, fc, t, st, hp) {
       c.beginPath(); c.moveTo(ex-4, ey); c.lineTo(ex+4, ey); c.stroke();
     } else {
       c.fillStyle = '#fff'; c.beginPath(); c.ellipse(ex, ey, 4, 4.5, 0, 0, 7); c.fill();
-      dot(c, '#282837', ex + fc, ey+1, 3); dot(c, '#fff', ex + fc*2, ey-1, 1);
+      dot(c, PAL.eye, ex + fc, ey+1, 3); dot(c, '#fff', ex + fc*2, ey-1, 1);
     }
   }
   if (st === STARTUP || st === ACTIVE) {
-    c.strokeStyle = HERO.hair; c.lineWidth = 2; const bxx = hx + fc*3;
+    c.strokeStyle = PAL.hair; c.lineWidth = 2; const bxx = hx + fc*3;
     c.beginPath(); c.moveTo(bxx-9, ey-8); c.lineTo(bxx-2, ey-6);
     c.moveTo(bxx+2, ey-6); c.lineTo(bxx+9, ey-8); c.stroke();
   }
@@ -934,15 +1076,18 @@ function faceHero(c, hx, hy, fc, t, st, hp) {
     c.strokeStyle = '#783c32'; c.lineWidth = 2; c.beginPath();
     c.arc(mx, my-2, 6, 0.55, 2.6); c.stroke();
   }
+  if (PAL.acc !== 'none') drawAcc(c, hx, hy, fc, t);
 }
 
 function faceRobot(c, hx, hy, fc, t, st, hp, blocking) {
-  c.strokeStyle = ROBOT.dark; c.lineWidth = 3;
-  c.beginPath(); c.moveTo(hx, hy-18); c.lineTo(hx, hy-30); c.stroke();
-  const on = Math.floor(t/12) % 2 === 0;
-  dot(c, on ? '#ff786e' : ROBOT.dark, hx, hy-32, 4);
-  dot(c, ROBOT.metal, hx, hy, 19); dot(c, ROBOT.belly, hx, hy+4, 14);
-  c.fillStyle = ROBOT.visor; rr(c, hx-13, hy-4, 26, 12, 6); c.fill();
+  if (PAL.acc === 'antenna') {
+    c.strokeStyle = PAL.dark; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(hx, hy-18); c.lineTo(hx, hy-30); c.stroke();
+    const on = Math.floor(t/12) % 2 === 0;
+    dot(c, on ? '#ff786e' : PAL.dark, hx, hy-32, 4);
+  }
+  dot(c, PAL.headMetal, hx, hy, 19); dot(c, PAL.belly, hx, hy+4, 14);
+  c.fillStyle = PAL.visor; rr(c, hx-13, hy-4, 26, 12, 6); c.fill();
   if (hp <= 0) {
     c.strokeStyle = '#ff5a50'; c.lineWidth = 2;
     for (const ex of [hx-6, hx+6]) {
@@ -953,37 +1098,38 @@ function faceRobot(c, hx, hy, fc, t, st, hp, blocking) {
     c.strokeStyle = '#ff8c78'; c.lineWidth = 2;
     c.beginPath(); c.arc(hx, hy+2, 4, 0, 4.5); c.stroke();
   } else {
-    let col = ROBOT.eye;
+    let col = PAL.eye;
     if (st === ACTIVE) col = '#ffaa46';
     else if (st === BLOCKSTUN || blocking) col = '#78b4ff';
     const scan = Math.round(6 * Math.sin(t * 0.2));
     dot(c, col, hx - 5 + scan, hy + 2, 3); dot(c, col, hx + 5 + scan, hy + 2, 3);
   }
-  c.strokeStyle = ROBOT.dark; c.lineWidth = 2;
+  c.strokeStyle = PAL.dark; c.lineWidth = 2;
   for (const gx of [-6, -2, 2, 6]) {
     c.beginPath(); c.moveTo(hx+gx, hy+11); c.lineTo(hx+gx, hy+14); c.stroke();
   }
   if (st === STARTUP || st === ACTIVE) dot(c, '#ffaa46', hx + fc*3, hy+12, 3);
+  if (PAL.acc !== 'none' && PAL.acc !== 'antenna') drawAcc(c, hx, hy, fc, t);
 }
 
-function drawFighter(c, side, fr, dx, t, heavy, isThrow) {
+function drawFighter(c, side, fr, dx, t, heavy, isThrow, skin, pxOverride) {
   const fc = side === 0 ? 1 : -1;
-  const pal = side === 0 ? HERO : ROBOT;
-  const isHero = side === 0;
+  PAL = skinPal(side, skin);
+  const isHero = !PAL.isRobot;
   const [x, hp, st, blocking] = fr;
-  const px = TC.PX0 + x * (TC.PX1 - TC.PX0);
+  const px = pxOverride !== undefined ? pxOverride : TC.PX0 + x * (TC.PX1 - TC.PX0);
   const ko = hp <= 0;
   const bob = (st === IDLE && !ko) ? 2 * Math.sin(t * 0.15) : 0;
   const lean = Math.max(-1, Math.min(1, dx * 130)) * fc;
-  const limb = isHero ? HERO.skin : ROBOT.metal;
+  const limb = isHero ? PAL.skinT : PAL.metal;
 
   c.fillStyle = '#0a0a10'; c.beginPath();
   c.ellipse(px, TC.SY - 1, 26, 5, 0, 0, 7); c.fill();   // 地面阴影
 
   if (ko) {
     const by = TC.SY - 12;
-    cap(c, isHero ? HERO.cloth : ROBOT.metal, px - fc*6, by, px + fc*30, by, 14);
-    cap(c, pal.pants, px + fc*30, by, px + fc*46, by - 8, 8);
+    cap(c, isHero ? PAL.cloth : PAL.metal, px - fc*6, by, px + fc*30, by, 14);
+    cap(c, PAL.pants, px + fc*30, by, px + fc*46, by - 8, 8);
     const hcx = px - fc*30, hcy = by - 4;
     isHero ? faceHero(c, hcx, hcy, fc, t, st, 0) : faceRobot(c, hcx, hcy, fc, t, st, 0, false);
     for (let k = 0; k < 3; k++) {
@@ -998,18 +1144,18 @@ function drawFighter(c, side, fr, dx, t, heavy, isThrow) {
   const step = Math.abs(dx) > 1e-9 ? Math.sin(t * 2.2) * 6 : 0;
   for (const fdx of [10 + step, -8 - step]) {
     const foot = [bx + fc * fdx, TC.SY - 3];
-    cap(c, pal.pants, bx + fc * (fdx * 0.3), by + 18, foot[0], foot[1], 7);
-    c.fillStyle = pal.shoe; c.beginPath();
+    cap(c, PAL.pants, bx + fc * (fdx * 0.3), by + 18, foot[0], foot[1], 7);
+    c.fillStyle = PAL.shoe; c.beginPath();
     c.ellipse(foot[0], foot[1], 9, 4.5, 0, 0, 7); c.fill();
   }
-  c.fillStyle = isHero ? HERO.cloth : ROBOT.metal;
+  c.fillStyle = isHero ? PAL.cloth : PAL.metal;
   rr(c, bx - 21, by - 28, 42, 52, 16); c.fill();
   if (isHero) {
-    c.fillStyle = HERO.belt; rr(c, bx - 21, by + 8, 42, 9, 4); c.fill();
+    c.fillStyle = PAL.belt; rr(c, bx - 21, by + 8, 42, 9, 4); c.fill();
     dot(c, '#ffdc8c', bx, by + 12, 3);
   } else {
-    dot(c, ROBOT.belly, bx, by + 4, 13);
-    dot(c, ROBOT.dark, bx - 14, by - 18, 2); dot(c, ROBOT.dark, bx + 14, by - 18, 2);
+    dot(c, PAL.belly, bx, by + 4, 13);
+    dot(c, PAL.dark, bx - 14, by - 18, 2); dot(c, PAL.dark, bx + 14, by - 18, 2);
   }
   isHero ? faceHero(c, hc[0], hc[1], fc, t, st, hp)
          : faceRobot(c, hc[0], hc[1], fc, t, st, hp, blocking);
@@ -1019,21 +1165,21 @@ function drawFighter(c, side, fr, dx, t, heavy, isThrow) {
   if (st === ACTIVE && isThrow) {
     for (const fy of [-78, -66]) {
       cap(c, limb, sh[0], sh[1], bx + fc*44, TC.SY + fy, 6);
-      dot(c, pal.fist, bx + fc*44, TC.SY + fy, 7);
+      dot(c, PAL.fist, bx + fc*44, TC.SY + fy, 7);
     }
   } else if (st === ACTIVE) {
     const reach = heavy ? 52 : 44, ftx = bx + fc * reach, fty = TC.SY - 80;
-    cap(c, limb, sh[0], sh[1], ftx, fty, 7); dot(c, pal.fist, ftx, fty, fistR);
+    cap(c, limb, sh[0], sh[1], ftx, fty, 7); dot(c, PAL.fist, ftx, fty, fistR);
     c.strokeStyle = '#c8c8d7'; c.lineWidth = 2;
     for (const ly of [-8, 0, 8]) {
       c.beginPath(); c.moveTo(ftx + fc*14, fty + ly); c.lineTo(ftx + fc*30, fty + ly); c.stroke();
     }
   } else if (st === STARTUP) {
     const ft = [bx + fc*4, TC.SY - 96];
-    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], fistR);
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, PAL.fist, ft[0], ft[1], fistR);
   } else if (st === RECOVERY) {
     const ft = [bx + fc*34, TC.SY - 66];
-    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], fistR);
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, PAL.fist, ft[0], ft[1], fistR);
     c.fillStyle = '#96d2ff';
     dot(c, '#96d2ff', hc[0] + fc*20, hc[1] - 8, 4);
     c.beginPath(); c.moveTo(hc[0] + fc*20 - 4, hc[1] - 9);
@@ -1060,7 +1206,7 @@ function drawFighter(c, side, fr, dx, t, heavy, isThrow) {
     }
   } else {
     const ft = [bx + fc*12, TC.SY - 88];
-    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, pal.fist, ft[0], ft[1], 7);
+    cap(c, limb, sh[0], sh[1], ft[0], ft[1], 7); dot(c, PAL.fist, ft[0], ft[1], 7);
   }
   if (st === ACTIVE) {
     c.strokeStyle = '#fff'; c.lineWidth = 3;
@@ -1102,17 +1248,20 @@ function rpDraw() {
   c.textAlign = 'left';
 
   const act = d.actions[i] || [0, 0];
+  const skins = d.skins || [];
   for (const side of [0, 1]) {
     const fr = side ? [f[1], f[3], f[5], f[7]] : [f[0], f[2], f[4], f[6]];
     const dx = RP.prevX[side] === null ? 0 : fr[0] - RP.prevX[side];
     const heavy = side ? act[1] === 3 : act[0] === 3;
     const isThrow = side ? act[1] === 5 : act[0] === 5;
-    drawFighter(c, side, fr, dx, t, heavy, isThrow);
+    drawFighter(c, side, fr, dx, t, heavy, isThrow, skins[side]);
   }
   RP.prevX = [f[0], f[1]];
 
-  tag(c, `🧑 ${n1}`, TC.PX0 + f[0]*(TC.PX1-TC.PX0), TC.SY - 156);
-  tag(c, `${n2} 🤖`, TC.PX0 + f[1]*(TC.PX1-TC.PX0), TC.SY - 156);
+  const e1 = (skins[0] && skins[0].base) === 'robot' ? '🤖' : '🧑';
+  const e2 = (skins[1] && skins[1].base) === 'hero' ? '🧑' : '🤖';
+  tag(c, `${e1} ${n1}`, TC.PX0 + f[0]*(TC.PX1-TC.PX0), TC.SY - 156);
+  tag(c, `${n2} ${e2}`, TC.PX0 + f[1]*(TC.PX1-TC.PX0), TC.SY - 156);
 
   const mx0 = 220, mx1 = TC.W - 220, my = TC.H - 88;
   c.fillStyle = '#3c3c46'; rr(c, mx0, my, mx1 - mx0, 10, 5); c.fill();
@@ -1153,6 +1302,101 @@ function rpDraw() {
   $('th-info').textContent = `${i+1}/${N} 帧 · 第 ${Math.floor(i/60)+1} 秒`;
 }
 function side_x(side, f) { return side ? f[1] : f[0]; }
+
+/* ---------- 形象系统 ---------- */
+let PAL = null;   // 当前正在绘制的角色调色板（drawFighter 入口设置）
+const SKIN_ACC_CN = { none:'无', headband:'发带', crown:'皇冠', ahoge:'呆毛',
+                      shades:'墨镜', bow:'蝴蝶结', scarf:'围巾', antenna:'天线' };
+
+function skinPal(side, skin) {
+  if (!skin) return side === 0
+    ? { isRobot:false, skinT:'#ffddb3', hair:'#603c26', band:'#ff7a36', ribbon:'#ff7a36',
+        cloth:'#f8f8fa', belt:'#ff7a36', fist:'#ffc8a0', pants:'#465a8c', shoe:'#f0f0f5',
+        eye:'#282837', acc:'headband' }
+    : { isRobot:true, metal:'#acc4ce', headMetal:'#acc4ce', dark:'#607482', visor:'#18222c',
+        eye:'#5ae6f0', belly:'#d6e8ec', fist:'#96b0ba', pants:'#788c98', shoe:'#50606c',
+        acc:'antenna' };
+  if (skin.base === 'hero') {
+    return { isRobot:false, skinT:'#ffddb3', fist:'#ffc8a0', pants:'#465a8c', shoe:'#f0f0f5',
+      hair: skin.head || '#603c26', band: skin.trim || '#ff7a36', ribbon: skin.trim || '#ff7a36',
+      cloth: skin.main || '#f8f8fa', belt: skin.trim || '#ff7a36',
+      eye: skin.eye || '#282837', acc: skin.acc || 'none' };
+  }
+  return { isRobot:true, dark:'#607482', visor:'#18222c', fist:'#96b0ba',
+    pants:'#788c98', shoe:'#50606c',
+    metal: skin.main || '#acc4ce', headMetal: skin.head || skin.main || '#acc4ce',
+    eye: skin.eye || '#5ae6f0', belly: skin.trim || '#d6e8ec',
+    acc: skin.acc || 'antenna' };
+}
+
+function drawAcc(c, hx, hy, fc, t) {
+  const a = PAL.acc, trim = PAL.isRobot ? PAL.belly : PAL.band;
+  if (a === 'crown') {
+    c.fillStyle = '#ffd166'; c.beginPath();
+    c.moveTo(hx - 11, hy - 18); c.lineTo(hx - 11, hy - 27); c.lineTo(hx - 6, hy - 21);
+    c.lineTo(hx, hy - 30); c.lineTo(hx + 6, hy - 21); c.lineTo(hx + 11, hy - 27);
+    c.lineTo(hx + 11, hy - 18); c.closePath(); c.fill();
+    dot(c, '#ff5a50', hx, hy - 24, 1.6);
+  } else if (a === 'ahoge') {
+    c.strokeStyle = PAL.hair || PAL.headMetal; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(hx, hy - (PAL.isRobot ? 16 : 20));
+    c.quadraticCurveTo(hx + fc*8, hy - 30, hx + fc*3, hy - 34); c.stroke();
+  } else if (a === 'shades') {
+    c.fillStyle = '#15151d'; rr(c, hx - 15, hy - 5, 30, 10, 4); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(hx - 9, hy + 2); c.lineTo(hx - 3, hy - 3); c.stroke();
+  } else if (a === 'bow') {
+    const bxp = hx + fc * 13, byp = hy - 14;
+    c.fillStyle = trim;
+    c.beginPath(); c.moveTo(bxp, byp); c.lineTo(bxp - fc*10, byp - 7); c.lineTo(bxp - fc*10, byp + 7);
+    c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(bxp, byp); c.lineTo(bxp + fc*10, byp - 7); c.lineTo(bxp + fc*10, byp + 7);
+    c.closePath(); c.fill();
+    dot(c, trim, bxp, byp, 3.5);
+  } else if (a === 'scarf') {
+    c.fillStyle = trim;
+    rr(c, hx - 14, hy + 15, 28, 7, 3); c.fill();
+    const w = 3 * Math.sin(t * 0.25);
+    c.beginPath(); c.moveTo(hx - fc*10, hy + 20); c.lineTo(hx - fc*24, hy + 26 + w);
+    c.lineTo(hx - fc*22, hy + 16 + w); c.closePath(); c.fill();
+  } else if (a === 'antenna' && !PAL.isRobot) {
+    c.strokeStyle = PAL.dark || '#607482'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(hx, hy - 16); c.lineTo(hx, hy - 30); c.stroke();
+    const on = Math.floor(t / 12) % 2 === 0;
+    dot(c, on ? '#ff786e' : (PAL.dark || '#607482'), hx, hy - 32, 4);
+  }
+}
+
+function drawPortrait(cv, skin, heroDefault) {
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, cv.width, cv.height);
+  PAL = skinPal(heroDefault ? 0 : 1, skin);
+  const cx = cv.width / 2, cy = cv.height / 2 + 8, t = 30;
+  c.fillStyle = PAL.isRobot ? PAL.metal : PAL.cloth;
+  rr(c, cx - 17, cy + 8, 34, 18, 9); c.fill();
+  if (PAL.isRobot) {
+    dot(c, PAL.headMetal, cx, cy - 4, 16); dot(c, PAL.belly, cx, cy, 11);
+    c.fillStyle = PAL.visor; rr(c, cx - 11, cy - 3, 22, 10, 5); c.fill();
+    const scan = Math.round(5 * Math.sin(t * 0.2));
+    dot(c, PAL.eye, cx - 4 + scan, cy + 2, 2.5); dot(c, PAL.eye, cx + 4 + scan, cy + 2, 2.5);
+  } else {
+    dot(c, PAL.hair, cx, cy - 8, 15);
+    for (const [dx, tip] of [[-11,8],[-3,11],[5,9],[12,8]]) {
+      c.fillStyle = PAL.hair; c.beginPath();
+      c.moveTo(cx+dx-3, cy-11); c.lineTo(cx+dx+3, cy-11); c.lineTo(cx+dx, cy-11-tip);
+      c.closePath(); c.fill();
+    }
+    dot(c, PAL.skinT, cx, cy - 2, 13);
+    c.fillStyle = PAL.band; rr(c, cx - 14, cy - 9, 28, 6, 3); c.fill();
+    for (const ex of [cx - 5, cx + 5]) {
+      c.fillStyle = '#fff'; c.beginPath(); c.ellipse(ex, cy + 1, 3, 3.5, 0, 0, 7); c.fill();
+      dot(c, PAL.eye, ex, cy + 2, 2.2);
+    }
+    c.strokeStyle = '#783c32'; c.lineWidth = 1.8;
+    c.beginPath(); c.arc(cx, cy + 6, 4, 0.55, 2.6); c.stroke();
+  }
+  drawAcc(c, cx, cy - 4, 1, t);
+}
 
 function rpAdvance(from, to) {
   const d = RP.data;

@@ -50,6 +50,26 @@ python join.py score       # 本地隐藏池评分（与服务器同口径，24 
 python join.py submit --name 你的名字    # 测试通过后提交上榜（自动服务端评分）
 ```
 
+## 形象定制（建议做：给你的格斗手捏个脸）
+
+提交时用 `--skin` 定制战斗形象（官网动画回放中可见，让形象呼应策略性格）：
+
+```bash
+.venv/bin/python join.py submit --name 名字 --skin '{"base":"hero","main":"#3f6b4f","trim":"#ffd166","head":"#2c4a3a","eye":"#282837","acc":"shades"}'
+```
+
+| 字段 | 含义 | 可选值 |
+|---|---|---|
+| `base` | 体型 | `hero`（少年格斗家）/ `robot`（机器人） |
+| `main` | 主装/机身色 | `#RRGGBB` |
+| `trim` | 腰带/饰边/围巾色 | `#RRGGBB` |
+| `head` | 发色 / 头部金属色 | `#RRGGBB` |
+| `eye` | 瞳色 / 发光眼色 | `#RRGGBB` |
+| `acc` | 饰品 | `none`/`headband`发带/`crown`皇冠/`ahoge`呆毛/`shades`墨镜/`bow`蝴蝶结/`scarf`围巾/`antenna`天线 |
+
+设计建议：龟防流→绿色系+呆毛；压制流→红色系+发带；确反大师→黑白色+墨镜；赌徒流→紫色机器人+皇冠。
+不指定 `--skin` 时，服务器会按策略文件哈希自动生成专属形象（同一份策略永远同一个形象）。
+
 ## 验收阶梯
 
 | 级 | 标准 | 说明 |
