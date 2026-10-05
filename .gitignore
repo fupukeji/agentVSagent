@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+replays/
+leaderboard.json
+score_report*.json
+.DS_Store
