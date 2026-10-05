@@ -29,6 +29,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 AGENT_FILE = os.path.join(ROOT, "my_agent.py")
 TEMPLATE = os.path.join(ROOT, "templates", "agent_template.py")
 INSTRUCTIONS = os.path.join(ROOT, "AGENT_INSTRUCTIONS.md")
+CRED_FILE = os.path.join(ROOT, ".arena-credentials")
 DEFAULT_SERVER = os.environ.get("ARENA_SERVER", "http://localhost:8000")
 
 PASS, FAIL, INFO = "✓", "✗", "·"
@@ -63,10 +64,12 @@ def require_agent_file():
         die(f"未找到 my_agent.py —— 先运行: python {os.path.basename(__file__)} init")
 
 
-def http_json(method, url, payload=None, timeout=300):
+def http_json(method, url, payload=None, timeout=300, headers=None):
     data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(url, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})
+    hdrs = {"Content-Type": "application/json"}
+    if headers:
+        hdrs.update(headers)
+    req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
@@ -188,12 +191,11 @@ def cmd_score(args):
 def cmd_submit(args):
     require_agent_file()
     server = args.server.rstrip("/")
-    name = args.name
-    if not name:
-        default = "我的AI"
-        name = input(f"选手名（回车取「{default}」）: ").strip() or default
+    # 不做交互式询问（Agent 全自主）：更新选手时不传名则沿用现名；新建时服务端自动取名
+    fields = {"token": require_cred()["token"]}
+    if args.name:
+        fields["name"] = args.name
     print(f"== 提交到 {server} ==")
-    fields = {"name": name}
     if args.skin:
         try:
             json.loads(args.skin)      # 早失败：JSON 非法立即提示
@@ -208,7 +210,8 @@ def cmd_submit(args):
     acc_cn = {"none": "无饰品", "headband": "发带", "crown": "皇冠", "ahoge": "呆毛",
               "shades": "墨镜", "bow": "蝴蝶结", "scarf": "围巾",
               "antenna": "天线"}.get(skin.get("acc", "none"), "?")
-    print(f"{PASS} 注册成功: {entry['avatar']} {entry['name']}（服务端冒烟 "
+    verb = "策略已更新（选手身份不变）" if r.get("created") is False else "注册成功"
+    print(f"{PASS} {verb}: {entry['avatar']} {entry['name']}（服务端冒烟 "
           f"{'胜' if smoke['winner'] == 0 else '负'}随机君）")
     print(f"{PASS} 战斗形象: {base} · {acc_cn} · 主色 {skin.get('main', '?')}"
           f"（官网动画回放中生效；--skin 可定制，见任务书「形象定制」）")
@@ -277,6 +280,96 @@ def cmd_guide(args):
     return 0
 
 
+def save_cred(server, player_id, name, token):
+    with open(CRED_FILE, "w", encoding="utf-8") as f:
+        json.dump({"server": server, "player_id": player_id,
+                   "name": name, "token": token}, f, ensure_ascii=False)
+    os.chmod(CRED_FILE, 0o600)
+
+
+def load_cred():
+    if not os.path.exists(CRED_FILE):
+        return None
+    return json.load(open(CRED_FILE, encoding="utf-8"))
+
+
+def require_cred():
+    c = load_cred()
+    if not c:
+        die("未找到玩家凭证 .arena-credentials —— 先运行: "
+            f"python {os.path.basename(__file__)} register --name 玩家名")
+    return c
+
+
+def cmd_register(args):
+    server = args.server.rstrip("/")
+    name = args.name or input("玩家名: ").strip()
+    r = http_json("POST", f"{server}/api/players/register", {"name": name})
+    save_cred(server, r["player_id"], r["name"], r["token"])
+    print(f"{PASS} 玩家「{r['name']}」注册成功，令牌已保存到 .arena-credentials")
+    print(f"{INFO} 令牌即账号：之后 submit/skin/report/comment 自动登录；"
+          f"把它交给你的 AI（workbuddy 等）即可全权代理")
+    return 0
+
+
+def cmd_whoami(args):
+    c = require_cred()
+    r = http_json("GET", f"{c['server']}/api/players/me",
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    f = r.get("fighter")
+    print(f"{PASS} 玩家: {r['name']}（注册于 {r['created']}）")
+    print(f"{PASS} 选手: {f['name'] if f else '尚无——去 submit 创建'}")
+    return 0
+
+
+def cmd_skin(args):
+    require_agent_file()
+    c = require_cred()
+    try:
+        json.loads(args.skin)
+    except Exception:
+        die("--skin 不是合法 JSON")
+    r = http_json("POST", f"{c['server']}/api/players/me/skin",
+                  json.loads(args.skin),
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    s = r["entry"]["skin"]
+    print(f"{PASS} 形象已更新: {s.get('base')} · {s.get('acc')} · 主色 {s.get('main')}")
+    return 0
+
+
+def cmd_report(args):
+    c = require_cred()
+    r = http_json("GET", f"{c['server']}/api/me/report",
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    print(f"== 战报：{r['player']} 的选手「{r['fighter']}」 ==")
+    sc = r.get("score")
+    if sc:
+        s = sc["scores"]
+        print(f"综合分 {s['total']}（胜率 {s['win_rate']:.0%} · 速度 {s['speed']:.2f} · "
+              f"稳定性 {s['stability']:.2f}）")
+        print("逐对手:", " · ".join(
+            f"{k} {v[0]}胜{v[1]}负{v[2]}平" for k, v in r["per_opponent"].items()))
+    print(f"近期战绩: {r['recent_form'] or '暂无'}")
+    if r["losses"]:
+        print("败局回放（交给 AI 分析弱点）:")
+        for l in r["losses"]:
+            print(f"  vs {l['opp']} ({l['result']}) → "
+                  f"python play.py --replay data/replays/{l['replay']}")
+    print(f"{INFO} {r['hint']}")
+    return 0
+
+
+def cmd_comment(args):
+    c = load_cred()
+    headers = {"Authorization": f"Bearer {c['token']}"} if c else {}
+    r = http_json("POST", f"{(c or {}).get('server', args.server).rstrip('/')}/api/comments",
+                  {"target": args.target, "body": args.text,
+                   "author": args.author}, headers=headers)
+    tag = "✓认证" if r["certified"] else "观众"
+    print(f"{PASS} 评论已发布（{tag}）: {r['body'][:40]}")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="竞技场参赛 CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -308,6 +401,29 @@ def main(argv=None):
 
     s = sub.add_parser("guide", help="AI IDE 任务指引")
     s.set_defaults(func=cmd_guide)
+
+    s = sub.add_parser("register", help="注册玩家（获得长期令牌，令牌即账号）")
+    s.add_argument("--name", default=None)
+    s.add_argument("--server", default=DEFAULT_SERVER)
+    s.set_defaults(func=cmd_register)
+
+    s = sub.add_parser("whoami", help="验证凭证与查看自己的选手")
+    s.add_argument("--server", default=DEFAULT_SERVER)
+    s.set_defaults(func=cmd_whoami)
+
+    s = sub.add_parser("skin", help="更新自己选手的战斗形象（需令牌）")
+    s.add_argument("--skin", required=True, metavar="JSON")
+    s.set_defaults(func=cmd_skin)
+
+    s = sub.add_parser("report", help="战报反馈：战绩/逐对手/败局回放（供 AI 迭代）")
+    s.set_defaults(func=cmd_report)
+
+    s = sub.add_parser("comment", help="以玩家（有凭证时认证）或观众身份评论")
+    s.add_argument("--target", required=True, help="match:<对局id> 或 player:<选手id>")
+    s.add_argument("--text", required=True)
+    s.add_argument("--author", default=None, help="无凭证时的昵称")
+    s.add_argument("--server", default=DEFAULT_SERVER)
+    s.set_defaults(func=cmd_comment)
 
     args = p.parse_args(argv)
     sys.exit(args.func(args))

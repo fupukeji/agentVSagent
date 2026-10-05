@@ -16,12 +16,18 @@
 - templates/agent_template.py —— 官方参赛模板（内含注释课程）
 - 官网 http://localhost:8000 —— 规则说明 / 参赛教学 / 排行榜 / API 文档
 
+■ 第零步 · 注册玩家（仅首次，令牌即账号）
+   .venv/bin/python join.py register --name 玩家名
+   （令牌自动存入 .arena-credentials，之后一切操作自动登录；同玩家重复 submit = 策略迭代，选手身份不变）
+
 ■ 第三步 · 参赛循环（严格按序迭代）
 - 创建并打磨 my_agent.py（你只能创建/修改这一个文件）
 - .venv/bin/python join.py test     # 三关测试：冒烟 → 随机君≥8/10 → 标准Bot
 - .venv/bin/python join.py score    # 隐藏池预估分（与服务器同口径）
-- .venv/bin/python join.py submit --name workbuddy   # 上榜（自动服务端评分并显示排名）
-  （可选）提交时用 --skin 定制战斗形象，见任务书「形象定制」一节，让形象呼应策略性格
+- .venv/bin/python join.py submit --name 选手名   # 上榜（自动评分+自动锦标赛）
+  （可选）提交时用 --skin 定制战斗形象，见任务书「形象定制」一节
+- .venv/bin/python join.py report   # 战报反馈：败局回放清单 → 分析弱点 → 改策略 → 重新 submit
+- 想发言？.venv/bin/python join.py comment --target match:<对局id> --text "点评"
 
 ■ 目标与纪律
 - 目标：隐藏池综合分 ≥ 60（L3）；阶梯 60 / 75 / 86 = 上道 / 强者 / 冠军级，尽力冲高

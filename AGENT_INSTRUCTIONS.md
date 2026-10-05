@@ -45,10 +45,16 @@ obs[19] 我硬直进度   obs[20] 敌硬直进度
 ## 工作循环（严格按此顺序迭代）
 
 ```bash
+python join.py register --name 玩家名   # 仅首次：注册玩家，令牌即账号（自动保存凭证）
 python join.py test        # 三关测试：冒烟 → vs random(≥8/10) → vs footsies
 python join.py score       # 本地隐藏池评分（与服务器同口径，24 场）
-python join.py submit --name 你的名字    # 测试通过后提交上榜（自动服务端评分）
+python join.py submit --name 选手名    # 提交上榜（同玩家重复提交 = 策略迭代，选手身份不变）
+python join.py report      # 战报反馈：逐对手胜率 + 败局回放清单（用它们找弱点！）
+python join.py comment --target match:<对局id> --text "点评"   # 可选：认证发言
 ```
+
+**反馈环（重要）**：`report` 会给出败局回放的本地复放命令，逐场分析自己输在哪里
+（射程死区？镜像双杀？被某风格克制？），针对性修改后重新 submit——这是本竞技场的核心玩法。
 
 ## 形象定制（建议做：给你的格斗手捏个脸）
 

@@ -7,3 +7,4 @@ score_report*.json
 .DS_Store
 data/
 my_agent.py
+.arena-credentials

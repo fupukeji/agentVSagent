@@ -22,7 +22,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -162,7 +162,74 @@ def entry_public(e):
     out = dict(e)
     sp = SCORES / f"{e['id']}.json"
     out["score"] = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else None
+    owner = player_by_id(e.get("owner"))
+    out["owner_name"] = owner["name"] if owner else None
     return out
+
+
+# ---------------- 玩家账号（令牌即账号） ----------------
+def load_players():
+    p = DATA / "players.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+
+def save_players(pl):
+    (DATA / "players.json").write_text(
+        json.dumps(pl, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def player_by_id(pid):
+    return next((p for p in load_players() if p["id"] == pid), None)
+
+
+def _hash_token(t: str) -> str:
+    return hashlib.sha256(t.encode("utf-8")).hexdigest()
+
+
+def _auth(token: str):
+    """令牌 → 玩家；无效返回 None。"""
+    if not token:
+        return None
+    h = _hash_token(token.strip())
+    return next((p for p in load_players() if p["token_hash"] == h), None)
+
+
+def _auth_bearer(authorization: str):
+    p = _auth((authorization or "").removeprefix("Bearer ").strip())
+    if not p:
+        raise HTTPException(401, "无效令牌：请先 join.py register（或检查 .arena-credentials）")
+    return p
+
+
+def _fighter_of(pid):
+    return next((e for e in load_roster() if e.get("owner") == pid), None)
+
+
+@app.post("/api/players/register")
+def api_player_register(body: dict):
+    """注册玩家：返回一次性明文令牌（服务端只存哈希，遗失需重新注册）。"""
+    name = (body.get("name") or "").strip()[:24]
+    if not name:
+        raise HTTPException(400, "玩家名不能为空")
+    if any(p["name"] == name for p in load_players()):
+        raise HTTPException(409, f"玩家名已被占用: {name}")
+    token = "pa_" + uuid.uuid4().hex + uuid.uuid4().hex[:8]
+    player = {"id": uuid.uuid4().hex[:8], "name": name,
+              "token_hash": _hash_token(token),
+              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    save_players(load_players() + [player])
+    print(f"[players] 新玩家注册: {name}", flush=True)
+    return {"player_id": player["id"], "name": name, "token": token,
+            "note": "令牌仅此一次返回，请妥善保存（join.py 会自动写入 .arena-credentials）"}
+
+
+@app.get("/api/players/me")
+def api_player_me(authorization: str = Header(None)):
+    p = _auth_bearer(authorization)
+    f = _fighter_of(p["id"])
+    return {"player_id": p["id"], "name": p["name"],
+            "created": p["created"],
+            "fighter": {"id": f["id"], "name": f["name"]} if f else None}
 
 
 # ---------------- API ----------------
@@ -224,6 +291,77 @@ def api_stats():
             "replays": len(list(REPLAYS.glob("*.json")))}
 
 
+@app.get("/api/me/report")
+def api_report(authorization: str = Header(None)):
+    """玩家战报（供 Agent 迭代策略的反馈环）：近期战绩、逐对手胜率、败局回放清单。"""
+    p = _auth_bearer(authorization)
+    e = _fighter_of(p["id"])
+    if not e:
+        raise HTTPException(404, "你还没有选手：先 join.py submit")
+    ms = [m for m in read_matches(300)
+          if m["a"]["id"] == e["id"] or m["b"]["id"] == e["id"]]
+    per_opp = {}
+    losses = []
+    form = ""
+    for m in ms[::-1]:
+        me_a = m["a"]["id"] == e["id"]
+        opp = m["b"] if me_a else m["a"]
+        w = m["outcome"]["winner"]
+        res = "d" if w is None else ("w" if w == (0 if me_a else 1) else "l")
+        d = per_opp.setdefault(opp["name"], [0, 0, 0])
+        d["wld".index(res)] += 1
+        form += {"w": "胜", "l": "负", "d": "平"}[res]
+        if res in ("l", "d") and m.get("replay"):
+            losses.append({"opp": opp["name"], "result": m["outcome"]["result"],
+                           "replay": m["replay"], "seed": m["seed"]})
+    sp = SCORES / f"{e['id']}.json"
+    return {"player": p["name"], "fighter": e["name"],
+            "score": json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else None,
+            "recent_form": form[-20:], "per_opponent": per_opp,
+            "losses": losses[:5],
+            "hint": "让 Agent 分析败局回放（join.py report 打印复放命令），针对性改进后重新 submit"}
+
+
+# ---------------- 评论（观众人类 / Agent 双通道） ----------------
+_CMT_TS = {}
+
+
+def _comments():
+    p = DATA / "comments.jsonl"
+    if not p.exists():
+        return []
+    return [json.loads(x) for x in
+            p.read_text(encoding="utf-8").splitlines() if x.strip()]
+
+
+@app.get("/api/comments")
+def api_comments(target: str):
+    cs = [c for c in _comments() if c["target"] == target]
+    return cs[-50:]
+
+
+@app.post("/api/comments")
+def api_comment(body: dict, authorization: str = Header(None)):
+    """评论：匿名昵称（观众）或玩家令牌（认证发言，强制显示玩家名+✓）。"""
+    target = (body.get("target") or "").strip()
+    text = (body.get("body") or "").strip()
+    if not target.startswith(("match:", "player:")):
+        raise HTTPException(400, "target 需为 match:<id> 或 player:<id>")
+    if not (1 <= len(text) <= 300):
+        raise HTTPException(400, "评论长度 1~300 字")
+    player = _auth((authorization or "").removeprefix("Bearer ").strip())
+    author = player["name"] if player else (body.get("author") or "观众")[:24]
+    key = author
+    if time.time() - _CMT_TS.get(key, 0) < 8:
+        raise HTTPException(429, "发言太快，歇 8 秒")
+    _CMT_TS[key] = time.time()
+    c = {"ts": time.strftime("%m-%d %H:%M"), "target": target,
+         "author": author, "certified": bool(player), "body": text}
+    with open(DATA / "comments.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    return c
+
+
 @app.get("/api/replays/{name}")
 def api_replay(name: str):
     if not re.fullmatch(r"[\w.-]+\.json", name):
@@ -262,21 +400,21 @@ def api_replay_frames(name: str):
             "skins": [p.get("skin") for p in data["players"]]}
 
 
-@app.post("/api/agents/{agent_id}/skin")
-@app.post("/api/agents/{agent_id}/skin")
-def api_skin(agent_id: str, body: dict):
-    """修改选手形象（无需重新上传策略）。"""
+@app.post("/api/players/me/skin")
+def api_skin(body: dict, authorization: str = Header(None)):
+    """修改自己选手的形象（需玩家令牌，只能动自己的）。"""
+    p = _auth_bearer(authorization)
     with LOCK:
         roster = load_roster()
-        e = next((x for x in roster if x["id"] == agent_id), None)
+        e = next((x for x in roster if x.get("owner") == p["id"]), None)
         if not e:
-            raise HTTPException(404, f"选手不存在: {agent_id}")
+            raise HTTPException(404, "你还没有选手：先 join.py submit")
         try:
             e["skin"] = validate_skin(body)
         except Exception as ex:  # noqa: BLE001
             raise HTTPException(400, f"形象配置无效: {ex}")
         save_roster(roster)
-    return {"entry": e}
+    return {"entry": entry_public(e)}
 
 
 def run_match(a, b, seed):
@@ -346,7 +484,7 @@ def api_tournament(body: dict | None = None):
 
 @app.post("/api/agents/upload")
 async def api_upload(file: UploadFile = File(...), name: str = Form(None),
-                     skin: str = Form(None)):
+                     skin: str = Form(None), token: str = Form(None)):
     raw = await file.read()
     if len(raw) > 100_000:
         raise HTTPException(400, "策略文件过大（>100KB）")
@@ -370,20 +508,40 @@ async def api_upload(file: UploadFile = File(...), name: str = Form(None),
             entry_skin = validate_skin(json.loads(skin))
         except Exception as ex:  # noqa: BLE001
             raise HTTPException(400, f"形象配置无效: {ex}")
-    else:                      # 未定制 → 由策略文件哈希生成专属形象
-        entry_skin = auto_skin(raw)
     kind = agent.info().get("kind", "file")
-    entry = {"id": uuid.uuid4().hex[:8], "spec": spec,
-             "name": (name or agent.name or fname[:-3])[:24],
-             "avatar": KIND_AVATAR.get(kind, "🥋"),
-             "skin": entry_skin,
-             "note": f"玩家上传 · 冒烟{'胜' if outcome['winner'] == 0 else '负'}"
-                     f"随机君"}
-    roster = load_roster() + [entry]
-    save_roster(roster)
-    # 全自动竞技场：注册即触发后台（补评分 → 刷新锦标赛），无需人工操作
+    player = _auth(token)
+    if not player:
+        raise HTTPException(401, "需要玩家令牌：先运行 join.py register --name 你的名字")
+    with LOCK:
+        roster = load_roster()
+        mine = next((x for x in roster if x.get("owner") == player["id"]), None)
+        if mine:                      # 同玩家再次提交 = 策略迭代（选手身份不变）
+            _CACHE.pop(mine["spec"], None)   # 丢弃旧策略缓存
+            mine["spec"] = spec
+            if name:
+                mine["name"] = name[:24]
+            if entry_skin:              # 仅显式传入时才改形象；不传则保留
+                mine["skin"] = entry_skin
+            mine["note"] = f"@{player['name']} · 策略已更新 " \
+                           f"{time.strftime('%m-%d %H:%M')}"
+            entry = mine
+            created = False
+        else:
+            entry = {"id": uuid.uuid4().hex[:8], "spec": spec,
+                     "owner": player["id"],
+                     "name": (name or agent.name or fname[:-3])[:24],
+                     "avatar": KIND_AVATAR.get(kind, "🥋"),
+                     "skin": entry_skin or auto_skin(raw),   # 新建未定制→哈希生成专属形象
+                     "note": f"@{player['name']} · 冒烟"
+                             f"{'胜' if outcome['winner'] == 0 else '负'}随机君"}
+            roster.append(entry)
+            created = True
+        save_roster(roster)
+    # 全自动竞技场：提交即触发后台（补评分 → 刷新锦标赛），无需人工操作
     threading.Thread(target=_auto_cycle, args=(entry["id"],), daemon=True).start()
-    return {"entry": entry, "smoke_outcome": outcome, "auto": "评分与锦标赛已自动排队"}
+    return {"entry": entry_public(entry), "created": created,
+            "player": player["name"],
+            "smoke_outcome": outcome, "auto": "评分与锦标赛已自动排队"}
 
 
 # ---------------- 启动 ----------------

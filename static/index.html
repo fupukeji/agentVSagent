@@ -198,6 +198,15 @@
   .thead { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .thead b { font-size:15px; }
 
+  /* 评论区 */
+  .cmtbox { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .cmthead { font-size:13px; font-weight:700; margin-bottom:8px; }
+  .cmtlist { max-height:170px; overflow-y:auto; display:grid; gap:6px; }
+  .cmt { background:var(--panel2); border-radius:9px; padding:7px 11px; font-size:13px; }
+  .cmt .ca { color:var(--acc2); font-weight:700; margin-right:6px; }
+  .cmt .ca .badge { color:var(--green); font-size:11px; }
+  .cmt .ct { color:var(--sub); font-size:11px; float:right; }
+
   /* 形象工坊 */
   .ssrow { display:flex; align-items:center; gap:6px; }
   .ssrow > span { width:34px; color:var(--sub); font-size:12px; flex-shrink:0; }
@@ -569,7 +578,12 @@ python replay.py verify replays/xxx.json         <span class="c"># 回放防篡�
       <tr><td><code>POST</code></td><td><code>/api/match</code></td><td>约战：<code>{"a": id, "b": id, "seed": 42}</code></td></tr>
       <tr><td><code>POST</code></td><td><code>/api/score/{agent_id}</code></td><td>触发隐藏池三维评分（24 场）</td></tr>
       <tr><td><code>POST</code></td><td><code>/api/tournament</code></td><td>重跑循环赛：<code>{"games": 6}</code></td></tr>
-      <tr><td><code>POST</code></td><td><code>/api/agents/upload</code></td><td>上传策略（multipart：<code>file</code> + 可选 <code>name</code>）</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/agents/upload</code></td><td>提交/迭代策略（multipart：<code>file</code>+<code>token</code>；同玩家重复提交=策略更新）</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/players/register</code></td><td>注册玩家 → 返回一次性令牌（令牌即账号）</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/players/me</code></td><td>验证令牌（Bearer），查看自己的选手</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/players/me/skin</code></td><td>更新自己选手形象（需令牌）</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/me/report</code></td><td>战报反馈（需令牌）：战绩/逐对手/败局回放——供 Agent 迭代策略</td></tr>
+      <tr><td><code>GET/POST</code></td><td><code>/api/comments</code></td><td>评论（观众昵称或令牌认证，认证发言带 ✓）</td></tr>
     </tbody></table>
   </section>
 
@@ -631,6 +645,16 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
       <input type="range" id="th-seek" min="0" max="100" value="0">
       <span class="tinfo" id="th-info">–</span>
     </div>
+    <div class="cmtbox" id="cmt-box" style="display:none">
+      <div class="cmthead">💬 战报评论区 <span class="tinfo" id="cmt-count"></span></div>
+      <div class="cmtlist" id="cmt-list"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="cmt-author" placeholder="昵称（观众）" style="width:120px">
+        <input type="text" id="cmt-body" placeholder="点评这场战斗…（回车发送）" style="flex:1">
+        <button class="big" id="cmt-send" style="padding:8px 16px">发送</button>
+      </div>
+      <div class="status" id="cmt-status" style="min-height:13px"></div>
+    </div>
   </div>
 </div>
 
@@ -655,7 +679,7 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dat
 async function playLatest() {
   try {
     const ms = await api('/api/matches?limit=1');
-    if (ms.length && ms[0].replay) return openReplay(ms[0].replay);
+    if (ms.length && ms[0].replay) return openReplay(ms[0].replay, ms[0].id);
     setStatus('暂无对局可看——擂台赛每 45 秒自动进行一场，稍候再来', 'err');
     switchTab('arena');
   } catch (e) { setStatus(e.message, 'err'); }
@@ -737,7 +761,7 @@ function renderWall(agents) {
         data-hero="${heroDef ? 1 : 0}"></canvas>
       <div style="flex:1;min-width:0">
         <div class="nm2" title="${a.name}">${a.name}</div>
-        <div class="sc2">${s ? `<b>${s.total}</b> 分 · 胜 ${Math.round(s.win_rate * 100)}%` : '评分排队中…'}</div>
+        <div class="sc2">${a.owner_name ? `@${a.owner_name} · ` : ''}${s ? `<b>${s.total}</b> 分 · 胜 ${Math.round(s.win_rate * 100)}%` : '评分排队中…'}</div>
         ${seg}
       </div>
     </div>`;
@@ -761,7 +785,7 @@ function renderMatches() {
     return `<div class="match">${an}<span class="vs">vs</span>${bn}
       <span class="kind">${res}</span>
       <div class="meta"><span>${o.ticks}帧 · seed ${m.seed}</span>
-        ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}')">🎬</button>
+        ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}','${m.id}')">🎬</button>
         <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">JSON</a>
         <button class="btn-mini" onclick="copyCmd('${m.replay}')">⧉</button>` : ''}
       </div></div>`;
@@ -1450,9 +1474,12 @@ function rpLoop(ts) {
   requestAnimationFrame(rpLoop);
 }
 
-async function openReplay(file) {
+async function openReplay(file, matchId) {
   $('theater').classList.add('on'); RP.open = true;
   $('th-title').textContent = '🎬 读取回放中…';
+  RP.matchId = matchId || null;
+  $('cmt-box').style.display = RP.matchId ? 'block' : 'none';
+  if (RP.matchId) loadComments();
   try {
     const d = await api(`/api/replay_frames/${file}`);
     RP.data = d; RP.idx = 0; RP.acc = 0; RP.fx = []; RP.prevX = [null, null];
@@ -1469,6 +1496,36 @@ async function openReplay(file) {
     $('th-title').textContent = '🎬 读取失败: ' + e.message;
   }
 }
+async function loadComments() {
+  if (!RP.matchId) return;
+  try {
+    const cs = await api(`/api/comments?target=match:${RP.matchId}`);
+    $('cmt-count').textContent = `（${cs.length}）`;
+    $('cmt-list').innerHTML = cs.length ? cs.map(c =>
+      `<div class="cmt"><span class="ct">${c.ts}</span>` +
+      `<span class="ca">${c.author}${c.certified ? ' <span class="badge">✓</span>' : ''}</span>` +
+      `${c.body.replace(/</g, '&lt;')}</div>`).join('')
+      : '<div class="tinfo">还没有评论，来说第一句</div>';
+    $('cmt-list').scrollTop = 1e9;
+  } catch (e) {}
+}
+async function sendComment() {
+  if (!RP.matchId) return;
+  const body = $('cmt-body').value.trim();
+  if (!body) return;
+  try {
+    await api('/api/comments', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target: `match:${RP.matchId}`, body,
+                            author: $('cmt-author').value.trim() || undefined})});
+    $('cmt-body').value = '';
+    $('cmt-status').textContent = '';
+    loadComments();
+  } catch (e) { $('cmt-status').textContent = e.message; }
+}
+$('cmt-send').onclick = sendComment;
+$('cmt-body').onkeydown = e => { if (e.key === 'Enter') sendComment(); };
+
 function closeReplay() {
   RP.open = false; RP.playing = false;
   $('theater').classList.remove('on');
