@@ -150,7 +150,7 @@ fighting-rl/
 
 ---
 
-### Task 2：无头对局执行器（arena.py）—— P0，半天
+### Task 2：无头对局执行器（arena.py）—— P0，半天 ✅
 
 **目标**：脱离 pygame，纯模拟执行「Agent vs Agent」一局或一批，输出结果与回放。这是平台「执行层」的最小内核。
 
@@ -171,9 +171,9 @@ fighting-rl/
 `winner` ∈ 0/1/null(判平)；`result` ∈ `win0|win1|timeout0|timeout1|draw`（timeout 按血量判）。
 
 **验收**：
-- [ ] `python arena.py demo` 正常运行并生成 3 个回放文件。
-- [ ] 相同 seed 重复运行 `run`，两次结果完全一致（确定性）。
-- [ ] `random` vs `footsies` 20 场胜率 < 30%（与已知随机强度一致）。
+- [x] `python arena.py demo` 正常运行并生成 3 个回放文件。
+- [x] 相同 seed 重复运行 `run`，两次结果完全一致（确定性）。
+- [x] `random` vs `footsies` 20 场胜率 < 30%（与已知随机强度一致）。
 
 ---
 

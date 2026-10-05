@@ -450,6 +450,41 @@ class FightingEnv(gym.Env):
         return self._obs(), reward, term, trunc, info
 
     # ---------- 内部 ----------
+    def obs_for(self, side: int):
+        """从某一侧视角返回观测（side=0 左 / 1 右）。
+        右侧为镜像视角：交换双方字段并翻转坐标，使两个 Agent
+        看到语义对称的 obs（「前进」始终指向对手）。"""
+        if side == 0:
+            return self._obs()
+        p, e = self.p1, self.p2
+        mx, ox = 1.0 - e.x, 1.0 - p.x   # 镜像坐标
+        return np.concatenate([
+            np.array([e.hp / e.max_hp, p.hp / p.max_hp,
+                      ox - mx, mx, ox], dtype=np.float32),
+            self._onehot(e), self._onehot(p),
+            np.array([1.0 * e.blocking, 1.0 * p.blocking,
+                      self._busy_frac(e), self._busy_frac(p)], dtype=np.float32),
+        ]).astype(np.float32)
+
+    def outcome(self) -> dict:
+        """终局判定：winner ∈ 0/1/None；result ∈ win0|win1|timeout0|timeout1|draw。"""
+        p, e = self.p1, self.p2
+        if p.hp <= 0 or e.hp <= 0:
+            if p.hp <= 0 and e.hp <= 0:
+                winner, result = None, "draw"
+            elif e.hp <= 0:
+                winner, result = 0, "win0"
+            else:
+                winner, result = 1, "win1"
+        elif p.hp > e.hp:
+            winner, result = 0, "timeout0"
+        elif p.hp < e.hp:
+            winner, result = 1, "timeout1"
+        else:
+            winner, result = None, "draw"
+        return {"winner": winner, "hp": [int(p.hp), int(e.hp)],
+                "ticks": int(self.t), "result": result}
+
     def _push(self, dfn, amount):
         sign = 1.0 if dfn is self.p2 else -1.0
         dfn.x = float(np.clip(dfn.x + sign * amount, *STAGE))
