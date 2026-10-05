@@ -235,22 +235,23 @@
            border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
   .fvbot b { margin-left:5px; }
 
-  /* 选手详情：翻卡（正面形象 / 背面战绩） */
+  /* 选手详情：翻面卡（正面形象 / 背面战绩，半程翻页实现，兼容所有浏览器） */
   #theater { z-index: 70; }   /* 回放剧场永远压在选手卡之上 */
-  .fvscene { perspective: 1200px; }
-  .fvcard { position: relative; height: 500px; transition: transform .55s cubic-bezier(.2,.7,.3,1);
-            transform-style: preserve-3d; }
-  .fvcard.flip { transform: rotateY(180deg); }
-  .fvface { position: absolute; inset: 0; backface-visibility: hidden;
-            -webkit-backface-visibility: hidden; display: flex; flex-direction: column; }
-  .fvfront { align-items: center; justify-content: center; gap: 10px;
-             cursor: pointer; border-radius: 14px;
-             background: radial-gradient(400px 300px at 50% 40%, rgba(255,122,54,.10), transparent 70%); }
-  .fvfront:hover { background: radial-gradient(400px 300px at 50% 40%, rgba(255,122,54,.16), transparent 70%); }
-  .fvback { transform: rotateY(180deg); }
-  .fvback .fvhead { display: flex; gap: 12px; align-items: center; }
-  .fvback .fvhead .pcva { cursor: pointer; border-radius: 10px; }
-  .flipback { font-size: 11px; color: var(--sub); }
+  .fvscene { perspective: 1100px; }
+  .fvcard { position: relative; height: 500px; }
+  .fvface { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .fvfront { align-items: center; justify-content: center; gap: 12px; cursor: pointer;
+             border-radius: 14px;
+             background: radial-gradient(420px 320px at 50% 40%, rgba(255,122,54,.10), transparent 70%); }
+  .fvcue { background: linear-gradient(90deg, var(--acc), #ff9a5b); color: #14100c;
+           font-weight: 800; border: none; border-radius: 999px; padding: 11px 26px;
+           font-size: 14.5px; cursor: pointer; box-shadow: 0 6px 22px rgba(255,122,54,.35);
+           transition: transform .15s; }
+  .fvfront:hover .fvcue { transform: scale(1.06); }
+  .flipback-btn { background: var(--panel2); color: var(--acc2); border: 1px solid var(--line);
+                  border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 700;
+                  cursor: pointer; }
+  .flipback-btn:hover { border-color: var(--acc2); }
   .fvtabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:12px; }
   .fvtab { background:none; border:none; color:var(--sub); padding:8px 14px; cursor:pointer;
            font-size:13px; font-weight:700; border-radius:9px 9px 0 0; }
@@ -717,23 +718,23 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
       <button class="btn-mini" id="fv-close">✕ 关闭</button></div>
     <div class="fvscene">
       <div class="fvcard" id="fv-card">
-        <!-- 正面：形象立绘（可再点翻面） -->
-        <div class="fvface fvfront" id="fv-front" title="点击翻面 → 对局/考官战绩/留言">
+        <!-- 正面：形象立绘（点任意处/按钮翻面） -->
+        <div class="fvface fvfront" id="fv-front">
           <canvas id="fv-hero" width="260" height="330"></canvas>
           <div id="fv-front-info" style="text-align:center"></div>
-          <div class="tinfo">👆 点击任意处翻面 · 看对局/考官战绩/留言</div>
+          <button class="fvcue">🔄 翻面 · 看对局 / 考官战绩 / 留言</button>
         </div>
         <!-- 背面：战绩详情 -->
-        <div class="fvface fvback">
-          <div class="fvhead">
-            <canvas id="fv-portrait" width="64" height="64" title="点击翻回形象"
-                    style="background:#101018;flex-shrink:0"></canvas>
+        <div class="fvface fvback" id="fv-back" style="visibility:hidden">
+          <div class="fvhead" style="display:flex;gap:12px;align-items:center">
+            <canvas id="fv-portrait" width="64" height="64"
+                    style="background:#101018;flex-shrink:0;border-radius:10px"></canvas>
             <div style="flex:1;min-width:0">
               <div id="fv-sub" class="tinfo" style="margin-bottom:5px"></div>
               <div id="fv-elo" style="font-size:13.5px;margin-bottom:5px"></div>
               <div class="bars" id="fv-bars"></div>
             </div>
-            <button class="btn-mini" id="fv-flip-btn" title="翻回形象">⟲ 形象</button>
+            <button class="flipback-btn" id="fv-flip-btn">⟲ 看形象</button>
           </div>
           <div class="fvtabs">
             <button class="fvtab on" id="fvt-m" onclick="fvTab('m')">⚔️ 对局</button>
@@ -904,7 +905,7 @@ function renderWall(lb) {
       </div>
     </div>`;
   }).join('');
-  document.querySelectorAll('.pcva').forEach(cv =>
+  document.querySelectorAll('#wall .pcva').forEach(cv =>
     drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
   renderRest();
 }
@@ -927,7 +928,7 @@ function renderRest() {
     </div>`;
   }).join('')
   : `<div class="tinfo" style="padding:8px">${q ? '没有匹配「' + q + '」的选手' : '当前全部选手都在殿堂之上'}</div>`;
-  document.querySelectorAll('.pcva').forEach(cv =>
+  document.querySelectorAll('#wall-rest .pcva').forEach(cv =>
     drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
 }
 $('wall-search').oninput = renderRest;
@@ -1717,13 +1718,26 @@ $('cmt-send').onclick = sendComment;
 $('cmt-body').onkeydown = e => { if (e.key === 'Enter') sendComment(); };
 
 /* ==================== 选手详情 ==================== */
-let FV = { id: null, t: 0, last: 0, heroSkin: null, heroDef: false };
+let FV = { id: null, t: 0, last: 0, heroSkin: null, flipping: false };
 
+function fvSetFace(front) {
+  $('fv-front').style.visibility = front ? 'visible' : 'hidden';
+  $('fv-back').style.visibility = front ? 'hidden' : 'visible';
+}
 function fvFlip(back) {
-  $('fv-card').classList.toggle('flip', back);
+  if (FV.flipping) return;
+  FV.flipping = true;
+  const card = $('fv-card');
+  card.style.transition = 'transform .2s ease-in';
+  card.style.transform = 'rotateY(88deg)';
+  setTimeout(() => {                    // 半程处换面，再转回来 —— 不依赖 backface-visibility
+    fvSetFace(!back);
+    card.style.transition = 'transform .24s ease-out';
+    card.style.transform = 'rotateY(0deg)';
+    setTimeout(() => { FV.flipping = false; }, 240);
+  }, 200);
 }
 $('fv-front').onclick = () => fvFlip(true);
-$('fv-portrait').onclick = e => { e.stopPropagation(); fvFlip(false); };
 $('fv-flip-btn').onclick = () => fvFlip(false);
 
 function fvHeroLoop(ts) {
@@ -1761,10 +1775,10 @@ async function openFighter(id) {
   const a = (window.AGENTS || []).find(x => x.id === id);
   if (!a) return;
   FV.id = id;
-  FV.t = 0; FV.last = performance.now();
+  FV.t = 0; FV.last = performance.now(); FV.flipping = false;
   FV.heroSkin = a.skin || null;
-  FV.heroDef = !a.skin && ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k));
-  fvFlip(false);
+  fvSetFace(true);                      // 打开必在正面（形象）
+  $('fv-card').style.transform = 'rotateY(0deg)';
   $('fview').classList.add('on');
   $('fv-name').textContent = (a.skin && a.skin.base === 'robot' ? '🤖 ' : '🧑 ') + a.name;
   drawPortrait($('fv-portrait'), a.skin,
