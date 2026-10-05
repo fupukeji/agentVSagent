@@ -208,6 +208,39 @@
   .card { position:relative; }
   .card .edit-skin { position:absolute; top:10px; right:10px; opacity:.75; }
   .card:hover .edit-skin { opacity:1; }
+
+  /* 竞技场仪表盘布局 */
+  .abar { display:flex; align-items:center; gap:16px; justify-content:space-between;
+          flex-wrap:wrap; padding:16px 0 4px; }
+  .abt { font-size:20px; font-weight:800; }
+  .abs { color:var(--sub); font-size:12.5px; margin-top:4px; }
+  .abtns { display:flex; gap:8px; flex-wrap:wrap; }
+  .agrid { display:grid; grid-template-columns:1.25fr .78fr; gap:18px; align-items:start; }
+  @media (max-width:920px){ .agrid { grid-template-columns:1fr; } }
+  .wall { display:grid; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); gap:8px; }
+  .mini { display:flex; align-items:center; gap:8px; background:var(--panel);
+          border:1px solid var(--line); border-radius:11px; padding:8px; position:relative; }
+  .mini .nm2 { font-size:13px; font-weight:700; max-width:88px; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+  .mini .sc2 { font-size:11px; color:var(--sub); margin-top:1px; }
+  .mini .sc2 b { color:var(--acc); font-size:13px; }
+  .mini .edit-skin { position:absolute; top:4px; right:5px; opacity:.6; }
+  .seg { display:flex; height:5px; border-radius:3px; overflow:hidden; margin-top:5px;
+         background:var(--panel2); }
+  .seg i { display:block; height:100%; }
+  .mfoot { display:flex; align-items:center; gap:6px; justify-content:center;
+           margin-top:10px; color:var(--sub); font-size:12px; flex-wrap:wrap; }
+  .mfoot button { background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:7px; padding:3px 10px; cursor:pointer; font-size:12px; }
+  .mfoot button:disabled { opacity:.4; cursor:default; }
+  .mfoot .pg { min-width:26px; text-align:center; padding:3px 8px; border-radius:7px;
+               border:1px solid transparent; cursor:pointer; background:none; color:var(--sub); }
+  .mfoot .pg.on { background:rgba(255,122,54,.15); color:var(--acc);
+                  border-color:rgba(255,122,54,.4); }
+  .filebtn { display:inline-block; background:var(--panel2); border:1.5px dashed var(--line);
+             color:var(--sub); border-radius:9px; padding:8px 12px; font-size:12.5px;
+             cursor:pointer; white-space:nowrap; }
+  .filebtn.has { border-color:var(--acc2); color:var(--txt); border-style:solid; }
 </style>
 </head>
 <body>
@@ -683,11 +716,26 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
 const $ = id => document.getElementById(id);
 
 /* ---------- 标签页 ---------- */
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + t.dataset.v));
+function switchTab(v) {
+  document.querySelectorAll('.tab').forEach(x =>
+    x.classList.toggle('active', x.dataset.v === v));
+  document.querySelectorAll('.view').forEach(el =>
+    el.classList.toggle('on', el.id === 'view-' + v));
   window.scrollTo({top: 0});
-});
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.v));
+function jumpToUpload() {
+  const el = $('drop-row');
+  if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+async function playLatest() {
+  try {
+    const ms = await api('/api/matches?limit=1');
+    if (ms.length && ms[0].replay) return openReplay(ms[0].replay);
+    setStatus('暂无对局可看——去演控台约一场', 'err');
+    switchTab('arena');
+  } catch (e) { setStatus(e.message, 'err'); }
+}
 
 /* ---------- 通用 ---------- */
 async function api(path, opts) {
@@ -746,31 +794,43 @@ async function fillTotals() {
   });
 }
 
-function renderCards(agents) {
-  $('cards').innerHTML = agents.map(a => {
+function renderWall(agents) {
+  $('wall').innerHTML = agents.map(a => {
     const s = a.score && a.score.scores;
-    const body = s ? `<div class="bars">
-        ${bar('胜率', s.win_pts, 65, 'linear-gradient(90deg,#ffb16b,#ff7a36)')}
-        ${bar('速度', s.speed_pts, 20, 'linear-gradient(90deg,#7ce8f5,#5ad7e6)')}
-        ${bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')}
-      </div>` : `<div class="noscore"><span class="spin">⏳</span> 隐藏池评分排队中…</div>`;
     const skinJson = JSON.stringify(a.skin || null).replace(/'/g, "&#39;");
     const heroDef = a.skin ? (a.skin.base === 'hero')
       : ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k));
-    return `<div class="card">
-      <button class="btn-mini edit-skin" onclick="openStudio('${a.id}')">🎨 形象</button>
-      <div class="top"><canvas class="pcva" width="64" height="64" data-skin='${skinJson}'
+    let seg = '';
+    if (s) {
+      const segs = [[s.win_pts, 65, '#ff7a36'], [s.speed_pts, 20, '#5ad7e6'],
+                    [s.stab_pts, 15, '#b197fc']];
+      seg = `<div class="seg">` + segs.map(([v, m, col]) =>
+        `<i style="width:${(v / m * 100).toFixed(1)}%;background:${col}"></i>`).join('') +
+        `</div>`;
+    }
+    return `<div class="mini">
+      <button class="btn-mini edit-skin" onclick="openStudio('${a.id}')">🎨</button>
+      <canvas class="pcva" width="48" height="48" data-skin='${skinJson}'
         data-hero="${heroDef ? 1 : 0}"></canvas>
-        <div><div class="nm">${a.name}</div><div class="nt">${a.note || ''}</div></div>
-        <div class="pts"><div class="n">${s ? s.total : '–'}</div><div class="l">综合分</div></div>
-      </div>${body}</div>`;
+      <div style="flex:1;min-width:0">
+        <div class="nm2" title="${a.name}">${a.name}</div>
+        <div class="sc2">${s ? `<b>${s.total}</b> 分 · 胜 ${Math.round(s.win_rate * 100)}%` : '评分排队中…'}</div>
+        ${seg}
+      </div>
+    </div>`;
   }).join('');
   document.querySelectorAll('.pcva').forEach(cv =>
     drawPortrait(cv, JSON.parse(cv.dataset.skin || 'null'), cv.dataset.hero === '1'));
 }
 
-function renderMatches(ms) {
-  $('matches').innerHTML = ms.length ? ms.map(m => {
+const MP = { page: 1, per: 8, all: [], total: 0 };
+
+function renderMatches() {
+  const ms = MP.all, N = ms.length;
+  const maxPage = Math.max(1, Math.ceil(N / MP.per));
+  if (MP.page > maxPage) MP.page = maxPage;
+  const pg = ms.slice((MP.page - 1) * MP.per, MP.page * MP.per);
+  $('matches').innerHTML = N ? pg.map(m => {
     const o = m.outcome, w = o.winner;
     const an = `<span class="${w === 0 ? 'win' : w === 1 ? 'lose' : ''}">${m.a.avatar} ${m.a.name}</span>`;
     const bn = `<span class="${w === 1 ? 'win' : w === 0 ? 'lose' : ''}">${m.b.avatar} ${m.b.name}</span>`;
@@ -778,12 +838,27 @@ function renderMatches(ms) {
     return `<div class="match">${an}<span class="vs">vs</span>${bn}
       <span class="kind">${res}</span>
       <div class="meta"><span>${o.ticks}帧 · seed ${m.seed}</span>
-        ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}')">🎬 动画</button>
-        <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">回放JSON</a>
-        <button class="btn-mini" onclick="copyCmd('${m.replay}')">复放命令</button>` : ''}
+        ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}')">🎬</button>
+        <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">JSON</a>
+        <button class="btn-mini" onclick="copyCmd('${m.replay}')">⧉</button>` : ''}
       </div></div>`;
   }).join('') : '<div class="loading">暂无对局——去演控台约一场</div>';
+  // 分页条
+  let btns = '';
+  const win = [];
+  for (let p = 1; p <= maxPage; p++)
+    if (p === 1 || p === maxPage || Math.abs(p - MP.page) <= 1) win.push(p);
+    else if (win[win.length - 1] !== '…') win.push('…');
+  for (const p of win)
+    btns += p === '…' ? `<span>…</span>`
+      : `<button class="pg${p === MP.page ? ' on' : ''}" onclick="gotoPage(${p})">${p}</button>`;
+  $('mpage').innerHTML = N > MP.per ?
+    `<button ${MP.page <= 1 ? 'disabled' : ''} onclick="gotoPage(${MP.page - 1})">‹</button>
+     ${btns}
+     <button ${MP.page >= maxPage ? 'disabled' : ''} onclick="gotoPage(${MP.page + 1})">›</button>
+     <span style="margin-left:6px">共 ${MP.total || N} 场</span>` : '';
 }
+function gotoPage(p) { MP.page = Math.max(1, p); renderMatches(); }
 
 function copyCmd(replay) {
   const cmd = `python play.py --replay data/replays/${replay}`;
@@ -802,13 +877,15 @@ function fillSelects(agents) {
 async function loadAll() {
   try {
     const [agents, lb, matches, stats] = await Promise.all([
-      api('/api/agents'), api('/api/leaderboard'), api('/api/matches'), api('/api/stats')]);
-    fillSelects(agents); renderCards(agents); renderMatches(matches);
+      api('/api/agents'), api('/api/leaderboard'),
+      api('/api/matches?limit=300'), api('/api/stats')]);
+    MP.all = matches; MP.total = stats.matches;
+    fillSelects(agents); renderWall(agents); renderMatches();
     renderLeaderboard(lb);
     $('st-agents').textContent = stats.agents;
     $('st-matches').textContent = stats.matches;
     $('st-replays').textContent = stats.replays;
-  } catch (e) { setStatus('加载失败: ' + e.message, 'err'); }
+  } catch (e) { setStatus('加载失败: ' + e.message + '（服务器可能在重启，8 秒后自动重试）', 'err'); }
 }
 
 /* ---------- 规则页（数据与服务端同源） ---------- */
@@ -971,7 +1048,7 @@ $('up-skin').onclick = () => openStudio(null);
 
 /* 上传 */
 const drop = $('drop');
-drop.onclick = () => $('up-file').click();
+// drop 现为 <label for=up-file>，点击由浏览器原生处理；只接管拖拽
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('has'); };
 drop.ondragleave = () => drop.classList.remove('has');
 drop.ondrop = e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); };
@@ -979,9 +1056,10 @@ $('up-file').onchange = e => handleFile(e.target.files[0]);
 function handleFile(f) {
   if (!f) return;
   if (!f.name.endsWith('.py')) { setStatus('只接受 .py 文件', 'err'); return; }
-  drop.textContent = `📄 ${f.name}（${f.size} 字节）`;
-  drop.classList.add('has');
   drop._file = f;
+  drop.classList.add('has');
+  $('up-file-note').textContent = `📄 ${f.name}（${f.size} 字节）已就绪`;
+  $('up-file-note').className = 'status ok';
 }
 $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
   const f = drop._file;
@@ -995,8 +1073,8 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
     const o = r.smoke_outcome;
     setStatus(`注册成功：${r.entry.avatar} ${r.entry.name}`
       + `（冒烟${o.winner === 0 ? '胜' : '负'}随机君）—— 可去演控台评分/约战`, 'ok');
-    drop.textContent = '选择或拖入 .py 策略文件（含 class Agent）';
     drop.classList.remove('has'); drop._file = null; $('up-name').value = '';
+    $('up-file-note').textContent = ''; $('up-file-note').className = 'status';
     PENDING_SKIN = null; $('up-skin-note').textContent = '';
     loadAll();
   } catch (e) { setStatus(e.message, 'err'); }
@@ -1498,9 +1576,12 @@ function drawAcc(c, hx, hy, fc, t) {
 
 function drawPortrait(cv, skin, heroDefault) {
   const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, cv.width, cv.height);
+  const sc = cv.width / 64;                 // 逻辑 64×64 空间，任意尺寸等比缩放
+  c.setTransform(sc, 0, 0, sc, 0, 0);
   PAL = skinPal(heroDefault ? 0 : 1, skin);
-  const cx = cv.width / 2, cy = cv.height / 2 + 8, t = 30;
+  const cx = 32, cy = 36, t = 30;
   c.fillStyle = PAL.isRobot ? PAL.metal : PAL.cloth;
   rr(c, cx - 17, cy + 8, 34, 18, 9); c.fill();
   if (PAL.isRobot) {
