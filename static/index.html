@@ -235,7 +235,22 @@
            border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
   .fvbot b { margin-left:5px; }
 
-  /* 选手详情：标签页 */
+  /* 选手详情：翻卡（正面形象 / 背面战绩） */
+  #theater { z-index: 70; }   /* 回放剧场永远压在选手卡之上 */
+  .fvscene { perspective: 1200px; }
+  .fvcard { position: relative; height: 500px; transition: transform .55s cubic-bezier(.2,.7,.3,1);
+            transform-style: preserve-3d; }
+  .fvcard.flip { transform: rotateY(180deg); }
+  .fvface { position: absolute; inset: 0; backface-visibility: hidden;
+            -webkit-backface-visibility: hidden; display: flex; flex-direction: column; }
+  .fvfront { align-items: center; justify-content: center; gap: 10px;
+             cursor: pointer; border-radius: 14px;
+             background: radial-gradient(400px 300px at 50% 40%, rgba(255,122,54,.10), transparent 70%); }
+  .fvfront:hover { background: radial-gradient(400px 300px at 50% 40%, rgba(255,122,54,.16), transparent 70%); }
+  .fvback { transform: rotateY(180deg); }
+  .fvback .fvhead { display: flex; gap: 12px; align-items: center; }
+  .fvback .fvhead .pcva { cursor: pointer; border-radius: 10px; }
+  .flipback { font-size: 11px; color: var(--sub); }
   .fvtabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:12px; }
   .fvtab { background:none; border:none; color:var(--sub); padding:8px 14px; cursor:pointer;
            font-size:13px; font-weight:700; border-radius:9px 9px 0 0; }
@@ -700,34 +715,49 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
   <div class="theater" style="max-width:600px">
     <div class="thead"><b id="fv-name">选手</b>
       <button class="btn-mini" id="fv-close">✕ 关闭</button></div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <canvas id="fv-portrait" width="110" height="110" style="background:#101018;border-radius:14px;flex-shrink:0"></canvas>
-      <div style="flex:1;min-width:210px">
-        <div id="fv-sub" class="tinfo" style="margin-bottom:7px"></div>
-        <div id="fv-elo" style="font-size:14px;margin-bottom:8px"></div>
-        <div class="bars" id="fv-bars"></div>
-      </div>
-    </div>
-    <div class="fvtabs">
-      <button class="fvtab on" id="fvt-m" onclick="fvTab('m')">⚔️ 对局</button>
-      <button class="fvtab" id="fvt-s" onclick="fvTab('s')">🎯 考官战绩</button>
-      <button class="fvtab" id="fvt-c" onclick="fvTab('c')">💬 留言</button>
-    </div>
-    <div class="fvpane on" id="fv-pane-m"><div class="cmtlist" id="fv-matches"></div></div>
-    <div class="fvpane" id="fv-pane-s">
-      <div class="callout" style="margin:0 0 8px">
-        竞技场藏了 <b>8 位风格各异的神秘考官</b>：猛攻手、铁乌龟、摔跤狂、读招大师……
-        每位选手都要和每个考官打 3 场考核，才得出真实成绩。<br>
-        🟢 打得顺手 · 🟡 互有胜负 · 🔴 碰到克星。<br>
-        <b>赢一个考官不稀奇，八个全稳才是真高手</b>——这就是成绩单里「稳定」一项的由来。</div>
-      <div id="fv-bots"></div>
-    </div>
-    <div class="fvpane fvcol" id="fv-pane-c">
-      <div class="cmtlist" id="fv-cmt-list" style="flex:1"></div>
-      <div class="row" style="margin-top:8px">
-        <input type="text" id="fv-cmt-author" placeholder="昵称（观众）" style="width:110px">
-        <input type="text" id="fv-cmt-body" placeholder="为这位选手留言…（回车发送）" style="flex:1">
-        <button class="big" id="fv-cmt-send" style="padding:8px 16px">发送</button>
+    <div class="fvscene">
+      <div class="fvcard" id="fv-card">
+        <!-- 正面：形象立绘（可再点翻面） -->
+        <div class="fvface fvfront" id="fv-front" title="点击翻面 → 对局/考官战绩/留言">
+          <canvas id="fv-hero" width="260" height="330"></canvas>
+          <div id="fv-front-info" style="text-align:center"></div>
+          <div class="tinfo">👆 点击任意处翻面 · 看对局/考官战绩/留言</div>
+        </div>
+        <!-- 背面：战绩详情 -->
+        <div class="fvface fvback">
+          <div class="fvhead">
+            <canvas id="fv-portrait" width="64" height="64" title="点击翻回形象"
+                    style="background:#101018;flex-shrink:0"></canvas>
+            <div style="flex:1;min-width:0">
+              <div id="fv-sub" class="tinfo" style="margin-bottom:5px"></div>
+              <div id="fv-elo" style="font-size:13.5px;margin-bottom:5px"></div>
+              <div class="bars" id="fv-bars"></div>
+            </div>
+            <button class="btn-mini" id="fv-flip-btn" title="翻回形象">⟲ 形象</button>
+          </div>
+          <div class="fvtabs">
+            <button class="fvtab on" id="fvt-m" onclick="fvTab('m')">⚔️ 对局</button>
+            <button class="fvtab" id="fvt-s" onclick="fvTab('s')">🎯 考官战绩</button>
+            <button class="fvtab" id="fvt-c" onclick="fvTab('c')">💬 留言</button>
+          </div>
+          <div class="fvpane on" id="fv-pane-m"><div class="cmtlist" id="fv-matches"></div></div>
+          <div class="fvpane" id="fv-pane-s">
+            <div class="callout" style="margin:0 0 8px">
+              竞技场藏了 <b>8 位风格各异的神秘考官</b>：猛攻手、铁乌龟、摔跤狂、读招大师……
+              每位选手都要和每个考官打 3 场考核，才得出真实成绩。<br>
+              🟢 打得顺手 · 🟡 互有胜负 · 🔴 碰到克星。<br>
+              <b>赢一个考官不稀奇，八个全稳才是真高手</b>——这就是成绩单里「稳定」一项的由来。</div>
+            <div id="fv-bots"></div>
+          </div>
+          <div class="fvpane fvcol" id="fv-pane-c">
+            <div class="cmtlist" id="fv-cmt-list" style="flex:1"></div>
+            <div class="row" style="margin-top:8px">
+              <input type="text" id="fv-cmt-author" placeholder="昵称（观众）" style="width:110px">
+              <input type="text" id="fv-cmt-body" placeholder="为这位选手留言…（回车发送）" style="flex:1">
+              <button class="big" id="fv-cmt-send" style="padding:8px 16px">发送</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1507,17 +1537,16 @@ function drawAcc(c, hx, hy, fc, t) {
     const on = Math.floor(t / 12) % 2 === 0;
     dot(c, on ? '#ff786e' : (PAL.dark || '#607482'), hx, hy - 32, 4);
   } else if (a === 'horns') {
-    // 双角：自头顶两侧生出，先向外撇、再向上内勾（鬼/牛角意匠）
-    const bone = PAL.isRobot ? (PAL.headMetal || '#e8dfc8') : (PAL.hair || '#e8dfc8');
-    const edge = PAL.isRobot ? (PAL.dark || '#607482') : '#5b5148';
+    // 双角：短壮牛角——根部在头顶两侧，向外横撇后角尖上勾
+    const bone = '#efe4c8', edge = '#6b5f52';
     for (const s of [-1, 1]) {
       c.beginPath();
-      c.moveTo(hx + s * 1, hy - 11);                                  // 角根外侧
-      c.quadraticCurveTo(hx + s * 22, hy - 25, hx + s * 16, hy - 44); // 外缘 → 角尖
-      c.quadraticCurveTo(hx + s * 9, hy - 28, hx + s * 10, hy - 12);  // 内缘回角根
+      c.moveTo(hx + s * 4, hy - 21);                                   // 角根内缘
+      c.quadraticCurveTo(hx + s * 24, hy - 20, hx + s * 20, hy - 33);  // 向外横撇 → 角尖上勾
+      c.quadraticCurveTo(hx + s * 15, hy - 24, hx + s * 10, hy - 15);  // 内缘收回
       c.closePath();
       c.fillStyle = bone; c.fill();
-      c.strokeStyle = edge; c.lineWidth = 1.6; c.lineJoin = 'round'; c.stroke();
+      c.strokeStyle = edge; c.lineWidth = 1.4; c.lineJoin = 'round'; c.stroke();
     }
   }
 }
@@ -1688,7 +1717,33 @@ $('cmt-send').onclick = sendComment;
 $('cmt-body').onkeydown = e => { if (e.key === 'Enter') sendComment(); };
 
 /* ==================== 选手详情 ==================== */
-let FV = { id: null };
+let FV = { id: null, t: 0, last: 0, heroSkin: null, heroDef: false };
+
+function fvFlip(back) {
+  $('fv-card').classList.toggle('flip', back);
+}
+$('fv-front').onclick = () => fvFlip(true);
+$('fv-portrait').onclick = e => { e.stopPropagation(); fvFlip(false); };
+$('fv-flip-btn').onclick = () => fvFlip(false);
+
+function fvHeroLoop(ts) {
+  if (!FV.id || !$('fview').classList.contains('on')) return;
+  FV.t += Math.max(0, (ts - FV.last) / 1000) * 15; FV.last = ts;
+  const c = $('fv-hero').getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, 260, 330);
+  const cyc = Math.floor(FV.t / 70) % 4;
+  const st = [IDLE, IDLE, STARTUP, ACTIVE][cyc];
+  c.setTransform(1.15, 0, 0, 1.15, 130 - 500 * 1.15, 280 - 350 * 1.15);
+  drawFighter(c, 0, [0.5, 100, st, false], 0, Math.floor(FV.t),
+              cyc === 3, false, FV.heroSkin, 500);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  if (cyc === 3) {   // 重击判定帧：脚下闪光
+    c.fillStyle = 'rgba(255,220,100,.12)';
+    c.beginPath(); c.ellipse(130, 292, 80, 14, 0, 0, 7); c.fill();
+  }
+  requestAnimationFrame(fvHeroLoop);
+}
 
 function openFighterByName(nm) {
   const a = (window.AGENTS || []).find(x => x.name === nm);
@@ -1706,10 +1761,15 @@ async function openFighter(id) {
   const a = (window.AGENTS || []).find(x => x.id === id);
   if (!a) return;
   FV.id = id;
+  FV.t = 0; FV.last = performance.now();
+  FV.heroSkin = a.skin || null;
+  FV.heroDef = !a.skin && ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k));
+  fvFlip(false);
   $('fview').classList.add('on');
   $('fv-name').textContent = (a.skin && a.skin.base === 'robot' ? '🤖 ' : '🧑 ') + a.name;
   drawPortrait($('fv-portrait'), a.skin,
     !a.skin && ['强化学习', '玩家手写'].some(k => (a.note || '').includes(k)));
+  requestAnimationFrame(fvHeroLoop);
   $('fv-sub').textContent =
     (a.owner_name ? `玩家 @${a.owner_name}` : '系统选手') + ' · ' + (a.note || '');
   try {
@@ -1718,9 +1778,17 @@ async function openFighter(id) {
       const i = lb.board.findIndex(b => b.spec === a.spec);
       if (i >= 0) {
         const b = lb.board[i];
+        const tt = eloTitle(b.elo);
         $('fv-elo').innerHTML =
-          `<span class="elo" style="font-size:19px" title="等级分：赢加分输扣分，越高越强">${b.elo.toFixed(1)}</span>` +
-          ` <span class="tinfo">等级分·越高越强</span> · 榜单第 ${i + 1} 名 · ${b.w}胜${b.l}负${b.d}平 · 场均 ${b.mean_ticks.toFixed(0)} 帧`;
+          `<span class="elo" style="font-size:17px" title="等级分：赢加分输扣分，越高越强">${b.elo.toFixed(1)}</span>` +
+          ` <span class="tinfo">越高越强</span> · 第 ${i + 1} 名 · ${b.w}胜${b.l}负${b.d}平`;
+        const s = a.score && a.score.scores;
+        $('fv-front-info').innerHTML =
+          `<div style="font-size:18px;font-weight:800">${a.name}` +
+          (tt ? ` <span class="tt" style="color:${tt[2]};border:1px solid ${tt[2]}55">${tt[1]}</span>` : '') + '</div>' +
+          `<div class="tinfo" style="margin-top:4px">${a.owner_name ? '玩家 @' + a.owner_name + ' · ' : ''}` +
+          `等级分 ${b.elo.toFixed(0)} · 榜单第 ${i + 1} 名` +
+          (s ? ` · 综合分 <b style="color:var(--acc)">${s.total}</b>` : ' · 考核进行中') + '</div>';
       }
     }
   } catch (e) { $('fv-elo').textContent = ''; }
@@ -1820,7 +1888,8 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape') closeReplay();
 });
 document.addEventListener('keydown', e => {
-  if (e.code === 'Escape' && FV.id) $('fv-close').onclick();
+  if (e.code === 'Escape' && FV.id &&
+      !$('theater').classList.contains('on')) $('fv-close').onclick();
 });
 
 loadAll();
