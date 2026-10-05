@@ -520,10 +520,17 @@ def run_replay(path):
 
 def main():
     argv = sys.argv[1:]
-    if argv and argv[0] == "--replay":
+    # 复放模式：兼容 --replay / -replay / -r
+    if argv and argv[0] in ("--replay", "-replay", "-r"):
         return run_replay(argv[1] if len(argv) > 1 else None)
     model_path = argv[0] if argv else "fighting_ppo"
-    episodes = int(argv[1]) if len(argv) > 1 else 3
+    episodes = 3
+    if len(argv) > 1:
+        try:
+            episodes = int(argv[1])
+        except ValueError:
+            print(f"[提示] 忽略无法解析的场数参数: {argv[1]!r}（用法: "
+                  f"python play.py [模型名] [场数] | --replay <回放文件>）")
 
     model = None
     if os.path.exists(model_path) or os.path.exists(model_path + ".zip"):
