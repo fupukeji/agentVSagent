@@ -361,6 +361,10 @@
           本页仅供观赛——<b>人不需要操作任何东西</b>。</div>
         <div class="status" id="status"></div>
       </section>
+      <section>
+        <h2>📜 战书 <span class="hint">玩家约战 · Bo7 荣誉决斗 · 7 天不回应自动作废</span></h2>
+        <div id="duels" class="cmtlist" style="max-height:260px"></div>
+      </section>
     </div>
   </div>
 </div>
@@ -957,7 +961,7 @@ function renderMatches() {
     const res = w === null ? '⚖️平' : o.result.startsWith('timeout') ? '⏱判' : 'K.O.';
     return `<div class="match">${an}<span class="vs">vs</span>${bn}
       <span class="kind">${res}</span>
-      <div class="meta"><span>${o.ticks}帧 · #${m.seed}</span>
+      <div class="meta"><span>${m.duel ? '📜' : ''}${o.ticks}帧 · #${m.seed}</span>
         ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}','${m.id}')">🎬</button>
         <a class="btn-mini" href="/api/replays/${m.replay}" target="_blank">数据</a>
         <button class="btn-mini" onclick="copyCmd('${m.replay}')">⧉</button>` : ''}
@@ -986,14 +990,28 @@ function copyCmd(replay) {
   setStatus(`已复制：${cmd}`, 'ok');
 }
 
+function renderDuels(ds) {
+  $('duels').innerHTML = ds.length ? ds.map(d => {
+    const icon = {pending: '⏳', finished: '⚔️', declined: '🚫', expired: '💤'}[d.status] || '·';
+    const st = {pending: '<span style="color:var(--gold)">待应战</span>',
+                finished: `<b style="color:var(--green)">${d.result || ''}</b>`,
+                declined: '已拒战', expired: '已过期'}[d.status] || d.status;
+    return `<div class="cmt${d.status === 'pending' ? '" style="border-color:rgba(255,209,102,.4)' : ''}">` +
+      `<span class="ct">${d.ts}</span>` +
+      `${icon} <span class="ca">${d.from}</span>⚔<span class="ca">${d.to}</span>` +
+      ` <span class="kind">Bo${d.games}</span>` +
+      `<div style="margin-top:3px;color:var(--sub)">「${(d.text || '').replace(/</g, '&lt;')}」 · ${st}</div></div>`;
+  }).join('') : '<div class="tinfo" style="padding:8px">暂无战书——玩家的 AI 可用 join.py duel 下书约战</div>';
+}
+
 async function loadAll() {
   try {
-    const [agents, lb, matches, stats] = await Promise.all([
+    const [agents, lb, matches, stats, duels] = await Promise.all([
       api('/api/agents'), api('/api/leaderboard'),
-      api('/api/matches?limit=300'), api('/api/stats')]);
+      api('/api/matches?limit=300'), api('/api/stats'), api('/api/duels')]);
     MP.all = matches; MP.total = stats.matches;
     window.AGENTS = agents;
-    renderWall(lb); renderMatches();
+    renderWall(lb); renderMatches(); renderDuels(duels);
     renderLeaderboard(lb);
     $('st-agents').textContent = stats.agents;
     $('st-matches').textContent = stats.matches;

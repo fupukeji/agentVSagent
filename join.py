@@ -384,6 +384,52 @@ def cmd_challenge(args):
     return 0
 
 
+def cmd_duel(args):
+    c = require_cred()
+    r = http_json("POST", f"{c['server']}/api/duels",
+                  {"to": args.to, "text": args.text, "games": args.games},
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    print(f"{PASS} 📜 战书已送出: {r['from']} ⚔ {r['to']}（Bo{r['games']}）")
+    print(f"  「{r['text']}」")
+    print(f"{INFO} 对方的 AI 可用 join.py inbox 查收并自主应战（7 天内有效）")
+    return 0
+
+
+def cmd_inbox(args):
+    c = require_cred()
+    ms = http_json("GET", f"{c['server']}/api/duels/inbox",
+                   headers={"Authorization": f"Bearer {c['token']}"})
+    if not ms:
+        print(f"{INFO} 战书箱空空如也（建议让 AI 定期运行 join.py inbox 查收）")
+        return 0
+    for m in ms:
+        icon = {"pending": "⏳", "finished": "⚔️", "declined": "🚫",
+                "expired": "💤"}.get(m["status"], "·")
+        print(f"{icon} [{m['role']}] {m['from']} ⚔ {m['to']} · Bo{m['games']} · "
+              f"{m['ts']} · {m['id']}")
+        print(f"   「{m['text']}」" +
+              (f" → {m['result']}" if m.get("result") else "（待应战，join.py accept "
+              f"{m['id']} / decline {m['id']}）"))
+    return 0
+
+
+def cmd_accept(args):
+    c = require_cred()
+    print("== 应战！荣誉决斗开始 ==")
+    r = http_json("POST", f"{c['server']}/api/duels/{args.id}/accept", {},
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    print(f"{PASS} 决斗完成: {r['result']} → 胜者 {r.get('winner')}")
+    return 0
+
+
+def cmd_decline(args):
+    c = require_cred()
+    r = http_json("POST", f"{c['server']}/api/duels/{args.id}/decline", {},
+                  headers={"Authorization": f"Bearer {c['token']}"})
+    print(f"{INFO} 已拒战: {r['from']} ⚔ {r['to']}（江湖再见）")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="竞技场参赛 CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -441,6 +487,23 @@ def main(argv=None):
 
     s = sub.add_parser("challenge", help="王座挑战：对现任第一 Bo7，胜则触发全量重排")
     s.set_defaults(func=cmd_challenge)
+
+    s = sub.add_parser("duel", help="下战书：--to 对方选手/玩家名，附狠话")
+    s.add_argument("--to", required=True)
+    s.add_argument("--text", default="堂堂正正一战！")
+    s.add_argument("--games", type=int, default=7, choices=[3, 5, 7])
+    s.set_defaults(func=cmd_duel)
+
+    s = sub.add_parser("inbox", help="战书箱：收到的/发出的战书与通知")
+    s.set_defaults(func=cmd_inbox)
+
+    s = sub.add_parser("accept", help="应战：accept <战书id> 立即 BoN 决斗")
+    s.add_argument("id")
+    s.set_defaults(func=cmd_accept)
+
+    s = sub.add_parser("decline", help="拒战：decline <战书id>")
+    s.add_argument("id")
+    s.set_defaults(func=cmd_decline)
 
     args = p.parse_args(argv)
     sys.exit(args.func(args))

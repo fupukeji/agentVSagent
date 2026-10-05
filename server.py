@@ -427,8 +427,8 @@ def api_skin(body: dict, authorization: str = Header(None)):
     return {"entry": entry_public(e)}
 
 
-def run_match(a, b, seed):
-    """执行并记录一场对局（演控台 API 与自动擂台赛共用）。需持有 LOCK。"""
+def run_match(a, b, seed, tag=None):
+    """执行并记录一场对局（擂台赛/挑战/战书共用）。需持有 LOCK。"""
     ag_a, ag_b = get_agent(a["spec"]), get_agent(b["spec"])
     outcome, _, _, path = play_one(ag_a, ag_b, seed, out_dir=str(REPLAYS))
     if path:   # 把注册名与形象写入回放（复放/动画渲染用）
@@ -445,6 +445,8 @@ def run_match(a, b, seed):
                  "skin": b.get("skin")},
            "seed": seed, "outcome": outcome,
            "replay": Path(path).name if path else None}
+    if tag:
+        rec["duel"] = tag
     append_match(rec)
     return rec
 
@@ -497,6 +499,133 @@ def api_tournament(body: dict | None = None):
     (DATA / "leaderboard.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return data
+
+
+# ---------------- 战书（玩家约战） ----------------
+def _load_duels():
+    p = DATA / "duels.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+
+def _save_duels(ds):
+    (DATA / "duels.json").write_text(
+        json.dumps(ds, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _duel_public(d):
+    return {"id": d["id"], "ts": d["ts"],
+            "from": d["from"]["fighter"], "to": d["to"]["fighter"],
+            "text": d.get("text", ""), "games": d["games"],
+            "status": d["status"], "result": d.get("result")}
+
+
+@app.get("/api/duels")
+def api_duels():
+    ds = _load_duels()
+    now = time.time()
+    changed = False
+    for d in ds:
+        if d["status"] == "pending" and now > d["expires"]:
+            d["status"] = "expired"
+            changed = True
+    if changed:
+        _save_duels(ds)
+    return [_duel_public(d) for d in reversed(ds[-20:])]
+
+
+@app.post("/api/duels")
+def api_duel_send(body: dict, authorization: str = Header(None)):
+    """下战书（需令牌）：to = 对方选手名或玩家名；附狠话；BoN（3/5/7）。"""
+    p = _auth_bearer(authorization)
+    me = _fighter_of(p["id"])
+    if not me:
+        raise HTTPException(404, "你还没有选手：先 join.py submit")
+    target_name = (body.get("to") or "").strip()
+    players = {pp["id"]: pp["name"] for pp in load_players()}
+    target = next((x for x in load_roster()
+                   if x["name"] == target_name
+                   or players.get(x.get("owner")) == target_name), None)
+    if not target:
+        raise HTTPException(404, f"找不到选手或玩家: {target_name}")
+    if target["id"] == me["id"]:
+        raise HTTPException(400, "不能对自己下战书")
+    games = int(body.get("games", 7))
+    if games not in (3, 5, 7):
+        raise HTTPException(400, "games 只能是 3/5/7")
+    text = (body.get("text") or "堂堂正正一战！")[:120]
+    d = {"id": uuid.uuid4().hex[:6], "ts": time.strftime("%m-%d %H:%M"),
+         "created": time.time(), "expires": time.time() + 7 * 86400,
+         "from": {"pid": p["id"], "fighter": me["name"], "fid": me["id"]},
+         "to": {"pid": target.get("owner"), "fighter": target["name"],
+                "fid": target["id"]},
+         "text": text, "games": games, "status": "pending"}
+    with LOCK:
+        _save_duels(_load_duels() + [d])
+    print(f"[duel] 📜 战书: {me['name']} → {target['name']} 「{text}」", flush=True)
+    return _duel_public(d)
+
+
+@app.get("/api/duels/inbox")
+def api_duel_inbox(authorization: str = Header(None)):
+    """战书通知：我收到的 / 我发出的。"""
+    p = _auth_bearer(authorization)
+    out = []
+    for d in reversed(_load_duels()[-30:]):
+        role = None
+        if d["to"]["pid"] == p["id"]:
+            role = "收到"
+        elif d["from"]["pid"] == p["id"]:
+            role = "发出"
+        if role:
+            x = _duel_public(d)
+            x["role"] = role
+            out.append(x)
+    return out
+
+
+@app.post("/api/duels/{duel_id}/accept")
+def api_duel_accept(duel_id: str, authorization: str = Header(None)):
+    """应战（仅受战方可）：立即执行 BoN 荣誉决斗，逐场入档。不影响循环赛排名。"""
+    p = _auth_bearer(authorization)
+    ds = _load_duels()
+    d = next((x for x in ds if x["id"] == duel_id), None)
+    if not d:
+        raise HTTPException(404, "战书不存在")
+    if d["to"]["pid"] != p["id"]:
+        raise HTTPException(403, "只有受战方本人能应战")
+    if d["status"] != "pending":
+        raise HTTPException(409, f"战书状态已是 {d['status']}")
+    me = _fighter_of(p["id"])
+    roster = load_roster()
+    opp = next((x for x in roster if x["id"] == d["from"]["fid"]), None)
+    if not (me and opp):
+        raise HTTPException(404, "选手已离场")
+    with LOCK:
+        aw, bw = _best_of(opp, me, d["games"], tag="战书决斗")   # a=下书方
+        d["status"] = "finished"
+        d["result"] = f"{d['from']['fighter']} {aw}:{bw} {d['to']['fighter']}"
+        d["result_raw"] = [aw, bw]
+        _save_duels(ds)
+    winner = d["from"]["fighter"] if aw > bw else d["to"]["fighter"]
+    print(f"[duel] ⚔️ 决斗完成: {d['result']}（胜者 {winner}）", flush=True)
+    return {**_duel_public(d), "winner": winner if aw != bw else "平"
+            if aw == bw else winner}
+
+
+@app.post("/api/duels/{duel_id}/decline")
+def api_duel_decline(duel_id: str, authorization: str = Header(None)):
+    p = _auth_bearer(authorization)
+    ds = _load_duels()
+    d = next((x for x in ds if x["id"] == duel_id), None)
+    if not d:
+        raise HTTPException(404, "战书不存在")
+    if d["to"]["pid"] != p["id"]:
+        raise HTTPException(403, "只有受战方能拒战")
+    if d["status"] != "pending":
+        raise HTTPException(409, f"战书状态已是 {d['status']}")
+    d["status"] = "declined"
+    _save_duels(ds)
+    return _duel_public(d)
 
 
 @app.post("/api/challenge")
@@ -636,22 +765,23 @@ def _auto_cycle(new_agent_id=None):
         print(f"[arena] 自动周期异常: {ex}", flush=True)
 
 
-def _best_of(challenger, champion, n, tag="挑战赛"):
-    """BoN 对抗（左右侧轮换），逐场入档。需持有 LOCK。返回 (挑战者胜场, 冠军胜场)。"""
-    cw = cc = 0
+def _best_of(fa, fb, n, tag="对抗"):
+    """BoN 对抗（左右侧轮换），逐场入档。需持有 LOCK。返回 (fa胜场, fb胜场)。"""
+    aw = bw = 0
     for j in range(n):
-        a, b = (challenger, champion) if j % 2 == 0 else (champion, challenger)
-        rec = run_match(a, b, (int(time.time()) + j) % 100000)
+        a, b = (fa, fb) if j % 2 == 0 else (fb, fa)
+        rec = run_match(a, b, (int(time.time()) + j) % 100000, tag=tag)
         if rec["outcome"]["winner"] is not None:
             if rec["outcome"]["winner"] == 0:
-                if j % 2 == 0: cw += 1
-                else: cc += 1
+                if j % 2 == 0: aw += 1
+                else: bw += 1
             else:
-                if j % 2 == 0: cc += 1
-                else: cw += 1
+                if j % 2 == 0: bw += 1
+                else: aw += 1
         print(f"  [{tag}] 第{j + 1}场 {rec['a']['name']} vs {rec['b']['name']} "
-              f"→ {rec['outcome']['result']}（挑战者 {cw}:{cc}）", flush=True)
-    return cw, cc
+              f"→ {rec['outcome']['result']}（{fa['name']} {aw}:{bw} {fb['name']}）",
+              flush=True)
+    return aw, bw
 
 
 def _exhibition():
