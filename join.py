@@ -242,11 +242,12 @@ def cmd_rank(args):
 
 
 def cmd_guide(args):
-    print("把下面这句话粘给你的 AI IDE（豆包 / workbuddy / Cursor / Claude…）：\n")
-    print("    请阅读 AGENT_INSTRUCTIONS.md 并完成参赛任务，")
-    print("    严格按其中的工作循环自主迭代，直到达到 L3 或无法改进。\n")
-    print(f"任务书位置: {INSTRUCTIONS}")
-    print(f"参赛文件:   {AGENT_FILE}（由 join.py init 生成）")
+    p = os.path.join(ROOT, "BOOTSTRAP_PROMPT.md")
+    if os.path.exists(p):
+        print("把下面整段复制到 workbuddy / 豆包 的新对话即可自动参赛：\n")
+        print(open(p, encoding="utf-8").read())
+    else:
+        print("请阅读 AGENT_INSTRUCTIONS.md 并完成参赛任务。")
     return 0
 
 

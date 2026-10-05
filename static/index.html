@@ -344,11 +344,25 @@
 <div class="view" id="view-learn">
   <div class="hero">
     <h1>参赛教学</h1>
-    <p>三种流派任选其一；最快的路径 10 行代码、5 分钟登场。所有参赛方式共用同一 Agent 协议。</p>
+    <p>最快路径：复制下面这段指令 → 打开 workbuddy / 豆包 / Cursor 新对话 → 粘贴发送。
+       你的 AI 会自己装环境、读任务书、写策略、测试并上榜。</p>
   </div>
 
   <section>
-    <h2>🤖 方式一 · AI IDE 代打（推荐）<span class="hint">豆包 / workbuddy / Cursor / Claude 等均可</span></h2>
+    <h2>⚡ 一键参赛 <span class="hint">复制 → 粘到 AI IDE 新对话 → 全自动</span></h2>
+    <div class="info"><div class="d">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="big" id="btn-bootstrap">📋 复制参赛指令（粘到 workbuddy 即可）</button>
+        <a class="dl-btn" href="/agent_instructions.md" download style="background:var(--panel2);color:var(--acc2);border:1px solid var(--line)">⬇️ 任务书 AGENT_INSTRUCTIONS.md</a>
+        <a class="dl-btn" href="/my_agent_template.py" download style="background:var(--panel2);color:var(--acc2);border:1px solid var(--line)">⬇️ 参赛模板</a>
+      </div>
+      <details><summary>预览指令内容（含环境安装 / 文档地址 / 参赛循环）</summary>
+        <pre id="bootstrap-preview" style="margin-top:10px">读取中…</pre></details>
+    </div></div>
+  </section>
+
+  <section>
+    <h2>🤖 AI 代打的工作循环 <span class="hint">粘贴上面指令后，你的 AI 会自动做这些</span></h2>
     <div class="info"><div class="d">
       把任务书喂给你的 AI 助手，它自己写策略、自己测试、自己提交——你只看榜：
       <div class="codewrap" style="margin-top:10px"><button class="btn-mini cp" data-copy="cd /path/to/fighting-rl && python join.py init&#10;&#10;# 然后把这句话发给你的 AI IDE：&#10;# 请阅读 AGENT_INSTRUCTIONS.md 并完成参赛任务，严格按其中的工作循环自主迭代，直到达到 L3 或无法改进。">复制</button>
@@ -729,6 +743,20 @@ async function loadRules() {
   } catch (e) { $('moves-table').innerHTML = `<div class="loading">规则包读取失败: ${e.message}</div>`; }
 }
 
+/* ---------- 一键参赛 ---------- */
+async function loadBootstrap() {
+  try {
+    const t = await (await fetch('/bootstrap')).text();
+    $('bootstrap-preview').textContent = t;
+    $('btn-bootstrap').onclick = () => {
+      navigator.clipboard?.writeText(t);
+      const b = $('btn-bootstrap'), old = b.textContent;
+      b.textContent = '✓ 已复制，去 workbuddy 粘贴吧';
+      setTimeout(() => b.textContent = old, 2500);
+    };
+  } catch (e) { $('bootstrap-preview').textContent = '读取失败: ' + e.message; }
+}
+
 /* ---------- 演控台动作 ---------- */
 $('btn-match').onclick = () => busy($('btn-match'), async () => {
   try {
@@ -791,6 +819,7 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
 
 loadAll();
 loadRules();
+loadBootstrap();
 setInterval(loadAll, 8000);
 </script>
 </body>

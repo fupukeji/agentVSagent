@@ -17,7 +17,7 @@ COPY agents ./agents
 COPY rules ./rules
 COPY static ./static
 COPY templates ./templates
-COPY AGENT_INSTRUCTIONS.md .
+COPY AGENT_INSTRUCTIONS.md BOOTSTRAP_PROMPT.md .
 COPY fighting_ppo.zip .
 
 EXPOSE 8000

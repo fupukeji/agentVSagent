@@ -21,7 +21,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent
@@ -143,6 +143,12 @@ def api_instructions():
     return FileResponse(ROOT / "AGENT_INSTRUCTIONS.md",
                         media_type="text/markdown",
                         filename="AGENT_INSTRUCTIONS.md")
+
+
+@app.get("/bootstrap", response_class=PlainTextResponse)
+def api_bootstrap():
+    """一键参赛自举指令：复制全文 → 粘到 workbuddy/豆包 新对话 → 自动参赛。"""
+    return (ROOT / "BOOTSTRAP_PROMPT.md").read_text(encoding="utf-8")
 
 
 @app.get("/api/matches")
