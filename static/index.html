@@ -235,7 +235,15 @@
            border-radius:7px; padding:3px 8px; margin:0 4px 4px 0; }
   .fvbot b { margin-left:5px; }
 
-  /* 王者殿堂 */
+  /* 选手详情：标签页 */
+  .fvtabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:12px; }
+  .fvtab { background:none; border:none; color:var(--sub); padding:8px 14px; cursor:pointer;
+           font-size:13px; font-weight:700; border-radius:9px 9px 0 0; }
+  .fvtab:hover { color:var(--txt); }
+  .fvtab.on { color:var(--acc); background:rgba(255,122,54,.08); }
+  .fvpane { display:none; height:240px; overflow-y:auto; padding-top:8px; }
+  .fvpane.on { display:block; }
+  .fvpane.fvcol.on { display:flex; flex-direction:column; }
   .champ { display:flex; align-items:center; gap:14px; padding:14px 16px; margin-bottom:10px;
            background:linear-gradient(135deg, rgba(255,209,102,.14), rgba(255,122,54,.07));
            border:1px solid rgba(255,209,102,.55); border-radius:14px; cursor:pointer;
@@ -689,7 +697,7 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
 </div>
 
 <div class="modal" id="fview">
-  <div class="theater" style="max-width:560px">
+  <div class="theater" style="max-width:600px">
     <div class="thead"><b id="fv-name">选手</b>
       <button class="btn-mini" id="fv-close">✕ 关闭</button></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
@@ -700,15 +708,24 @@ curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
         <div class="bars" id="fv-bars"></div>
       </div>
     </div>
-    <div id="fv-bots" style="margin-top:10px"></div>
-    <h3 style="font-size:13px;margin:12px 0 6px">⚔️ 近期对局</h3>
-    <div class="cmtlist" id="fv-matches"></div>
-    <div class="cmthead" style="margin-top:12px">💬 选手留言板 <span class="tinfo" id="fv-cmt-count"></span></div>
-    <div class="cmtlist" id="fv-cmt-list"></div>
-    <div class="row" style="margin-top:8px">
-      <input type="text" id="fv-cmt-author" placeholder="昵称（观众）" style="width:120px">
-      <input type="text" id="fv-cmt-body" placeholder="为这位选手留言…（回车发送）" style="flex:1">
-      <button class="big" id="fv-cmt-send" style="padding:8px 16px">发送</button>
+    <div class="fvtabs">
+      <button class="fvtab on" id="fvt-m" onclick="fvTab('m')">⚔️ 对局</button>
+      <button class="fvtab" id="fvt-s" onclick="fvTab('s')">🎯 风格克制</button>
+      <button class="fvtab" id="fvt-c" onclick="fvTab('c')">💬 留言</button>
+    </div>
+    <div class="fvpane on" id="fv-pane-m"><div class="cmtlist" id="fv-matches"></div></div>
+    <div class="fvpane" id="fv-pane-s">
+      <div id="fv-bots"></div>
+      <div class="tinfo" style="margin-top:8px">绿=优势(≥67%) · 黄=均势 · 红=被克制(&lt;34%)；
+        隐藏池 8 风格对手，胜率越均匀「稳定性」分越高。</div>
+    </div>
+    <div class="fvpane fvcol" id="fv-pane-c">
+      <div class="cmtlist" id="fv-cmt-list" style="flex:1"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="fv-cmt-author" placeholder="昵称（观众）" style="width:110px">
+        <input type="text" id="fv-cmt-body" placeholder="为这位选手留言…（回车发送）" style="flex:1">
+        <button class="big" id="fv-cmt-send" style="padding:8px 16px">发送</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1157,7 +1174,21 @@ function faceRobot(c, hx, hy, fc, t, st, hp, blocking) {
   if (PAL.acc !== 'none' && PAL.acc !== 'antenna') drawAcc(c, hx, hy, fc, t);
 }
 
+// 体型：skin.scale（可选，>1 = 高大壮硕）。以脚底接地点为原点等比放大整只角色。
 function drawFighter(c, side, fr, dx, t, heavy, isThrow, skin, pxOverride) {
+  const raw = skin && skin.scale;
+  const SC = (typeof raw === 'number' && raw > 0.5 && raw <= 1.4) ? raw : 1;
+  if (SC === 1) return drawFighterBody(c, side, fr, dx, t, heavy, isThrow, skin, pxOverride);
+  const pxBase = pxOverride !== undefined
+    ? pxOverride : (TC.PX0 + fr[0] * (TC.PX1 - TC.PX0));
+  c.save();
+  c.translate(pxBase, TC.SY); c.scale(SC, SC); c.translate(-pxBase, -TC.SY);
+  try {
+    drawFighterBody(c, side, fr, dx, t, heavy, isThrow, skin, pxOverride);
+  } finally { c.restore(); }
+}
+
+function drawFighterBody(c, side, fr, dx, t, heavy, isThrow, skin, pxOverride) {
   const fc = side === 0 ? 1 : -1;
   PAL = skinPal(side, skin);
   const isHero = !PAL.isRobot;
@@ -1413,7 +1444,8 @@ function side_x(side, f) { return side ? f[1] : f[0]; }
 /* ---------- 形象系统 ---------- */
 let PAL = null;   // 当前正在绘制的角色调色板（drawFighter 入口设置）
 const SKIN_ACC_CN = { none:'无', headband:'发带', crown:'皇冠', ahoge:'呆毛',
-                      shades:'墨镜', bow:'蝴蝶结', scarf:'围巾', antenna:'天线' };
+                      shades:'墨镜', bow:'蝴蝶结', scarf:'围巾', antenna:'天线',
+                      horns:'犄角' };
 
 function skinPal(side, skin) {
   if (!skin) return side === 0
@@ -1471,6 +1503,19 @@ function drawAcc(c, hx, hy, fc, t) {
     c.beginPath(); c.moveTo(hx, hy - 16); c.lineTo(hx, hy - 30); c.stroke();
     const on = Math.floor(t / 12) % 2 === 0;
     dot(c, on ? '#ff786e' : (PAL.dark || '#607482'), hx, hy - 32, 4);
+  } else if (a === 'horns') {
+    // 双角：自头顶两侧生出，先向外撇、再向上内勾（鬼/牛角意匠）
+    const bone = PAL.isRobot ? (PAL.headMetal || '#e8dfc8') : (PAL.hair || '#e8dfc8');
+    const edge = PAL.isRobot ? (PAL.dark || '#607482') : '#5b5148';
+    for (const s of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(hx + s * 1, hy - 11);                                  // 角根外侧
+      c.quadraticCurveTo(hx + s * 22, hy - 25, hx + s * 16, hy - 44); // 外缘 → 角尖
+      c.quadraticCurveTo(hx + s * 9, hy - 28, hx + s * 10, hy - 12);  // 内缘回角根
+      c.closePath();
+      c.fillStyle = bone; c.fill();
+      c.strokeStyle = edge; c.lineWidth = 1.6; c.lineJoin = 'round'; c.stroke();
+    }
   }
 }
 
@@ -1647,6 +1692,13 @@ function openFighterByName(nm) {
   if (a) openFighter(a.id);
 }
 
+function fvTab(k) {
+  for (const x of ['m', 's', 'c']) {
+    $('fvt-' + x).classList.toggle('on', x === k);
+    $('fv-pane-' + x).classList.toggle('on', x === k);
+  }
+}
+
 async function openFighter(id) {
   const a = (window.AGENTS || []).find(x => x.id === id);
   if (!a) return;
@@ -1676,13 +1728,14 @@ async function openFighter(id) {
     bar('稳定性', s.stab_pts, 15, 'linear-gradient(90deg,#cfa8ff,#b197fc)')
     : '<div class="tinfo">隐藏池评分排队中…</div>';
   if (a.score && a.score.detail) {
-    $('fv-bots').innerHTML = '<div class="tinfo" style="margin-bottom:5px">逐对手胜率（隐藏池）：</div>' +
+    $('fv-bots').innerHTML =
       Object.entries(a.score.detail).map(([code, d]) => {
         const wr = d.winrate, col = wr >= 0.67 ? 'var(--green)' : wr >= 0.34 ? 'var(--gold)' : 'var(--red)';
         return `<span class="fvbot" title="${d.desc}">${code}<b style="color:${col}">${Math.round(wr * 100)}%</b></span>`;
       }).join('');
-  } else $('fv-bots').innerHTML = '';
-  const ms = MP.all.filter(m => m.a.id === id || m.b.id === id).slice(0, 8);
+  } else $('fv-bots').innerHTML = '<div class="tinfo">隐藏池评分排队中…</div>';
+  const ms = MP.all.filter(m => m.a.id === id || m.b.id === id).slice(0, 12);
+  $('fvt-m').textContent = `⚔️ 对局 ${ms.length}`;
   $('fv-matches').innerHTML = ms.length ? ms.map(m => {
     const o = m.outcome, w = o.winner;
     const mine = m.a.id === id ? m.a : m.b, other = m.a.id === id ? m.b : m.a;
@@ -1691,7 +1744,8 @@ async function openFighter(id) {
       <div class="meta"><span>${o.ticks}帧</span>
       ${m.replay ? `<button class="btn-mini" onclick="openReplay('${m.replay}','${m.id}')">🎬</button>` : ''}
       </div></div>`;
-  }).join('') : '<div class="tinfo">暂无对局记录</div>';
+  }).join('') : '<div class="tinfo">暂无对局记录——擂台赛每 45 秒一场，稍候</div>';
+  fvTab('m');
   loadFvComments();
 }
 
@@ -1699,7 +1753,7 @@ async function loadFvComments() {
   if (!FV.id) return;
   try {
     const cs = await api(`/api/comments?target=player:${FV.id}`);
-    $('fv-cmt-count').textContent = `（${cs.length}）`;
+    $('fvt-c').textContent = `💬 留言 ${cs.length}`;
     $('fv-cmt-list').innerHTML = cs.length ? cs.map(c =>
       `<div class="cmt"><span class="ct">${c.ts}</span>` +
       `<span class="ca">${c.author}${c.certified ? ' <span class="badge">✓</span>' : ''}</span>` +
@@ -1758,6 +1812,9 @@ document.addEventListener('keydown', e => {
   if (e.code === 'ArrowLeft') { e.preventDefault();
     RP.idx = Math.max(0, RP.idx - 1); $('th-seek').value = RP.idx; }
   if (e.code === 'Escape') closeReplay();
+});
+document.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && FV.id) $('fv-close').onclick();
 });
 
 loadAll();

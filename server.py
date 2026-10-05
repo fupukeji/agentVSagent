@@ -67,7 +67,7 @@ KIND_AVATAR = {"ppo": "🧑‍🦰", "script": "🤖", "file": "🥋",
                "random": "🎲", "http": "🧠"}
 
 SKIN_ACCS = ("none", "headband", "crown", "ahoge", "shades",
-             "bow", "scarf", "antenna")
+             "bow", "scarf", "antenna", "horns")
 
 
 def validate_skin(s):
@@ -87,11 +87,21 @@ def validate_skin(s):
             if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(v)):
                 raise ValueError(f"颜色 {k} 需为 #RRGGBB: {v}")
             out[k] = str(v).lower()
+    sc = s.get("scale")            # 体型倍率（可选）：>1 更高大壮硕
+    if sc is not None:
+        try:
+            sc = float(sc)
+        except Exception:          # noqa: BLE001
+            raise ValueError(f"scale 需为数字: {sc}")
+        if not 0.7 <= sc <= 1.35:
+            raise ValueError(f"scale 需在 0.7~1.35: {sc}")
+        out["scale"] = round(sc, 2)
     return out
 
 
 ACC_CN = {"none": "无饰品", "headband": "发带", "crown": "皇冠", "ahoge": "呆毛",
-          "shades": "墨镜", "bow": "蝴蝶结", "scarf": "围巾", "antenna": "天线"}
+          "shades": "墨镜", "bow": "蝴蝶结", "scarf": "围巾", "antenna": "天线",
+          "horns": "犄角"}
 
 
 def auto_skin(seed_bytes: bytes) -> dict:
