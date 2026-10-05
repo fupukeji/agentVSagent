@@ -20,20 +20,25 @@
   a { color:var(--acc2); text-decoration:none; }
   .wrap { max-width:1180px; margin:0 auto; padding:0 20px; }
 
-  /* ---- 顶部 ---- */
-  header { border-bottom:1px solid var(--line); background:rgba(10,12,17,.85);
+  header { border-bottom:1px solid var(--line); background:rgba(10,12,17,.9);
            backdrop-filter:blur(8px); position:sticky; top:0; z-index:10; }
-  .nav { display:flex; align-items:center; gap:14px; height:60px; }
-  .logo { font-size:20px; font-weight:800; letter-spacing:.5px; }
+  .nav { display:flex; align-items:center; gap:14px; height:60px; flex-wrap:wrap; }
+  .logo { font-size:19px; font-weight:800; letter-spacing:.5px; white-space:nowrap; }
   .logo b { color:var(--acc); }
-  .tagline { color:var(--sub); font-size:13px; }
+  .tabs { display:flex; gap:4px; margin-left:8px; }
+  .tab { background:none; border:none; color:var(--sub); font-size:14px; padding:8px 12px;
+         cursor:pointer; border-radius:9px; font-weight:600; }
+  .tab:hover { color:var(--txt); background:var(--panel2); }
+  .tab.active { color:var(--acc); background:rgba(255,122,54,.1); }
   .spacer { flex:1; }
   .chips { display:flex; gap:8px; }
   .chip { background:var(--panel2); border:1px solid var(--line); border-radius:999px;
-          padding:4px 12px; font-size:12px; color:var(--sub); }
+          padding:4px 12px; font-size:12px; color:var(--sub); white-space:nowrap; }
   .chip b { color:var(--txt); }
 
-  /* ---- Hero ---- */
+  .view { display:none; }
+  .view.on { display:block; }
+
   .hero { padding:34px 0 22px; }
   .hero h1 { font-size:30px; font-weight:800;
     background:linear-gradient(90deg,#ffb16b,var(--acc),var(--acc2));
@@ -47,10 +52,10 @@
 
   section { margin:26px 0; }
   h2 { font-size:18px; font-weight:700; margin-bottom:14px; display:flex;
-       align-items:center; gap:8px; }
+       align-items:center; gap:8px; flex-wrap:wrap; }
   h2 .hint { font-size:12px; color:var(--sub); font-weight:400; margin-left:6px; }
+  h3 { font-size:15px; font-weight:700; margin:18px 0 10px; }
 
-  /* ---- 排行榜 ---- */
   table { width:100%; border-collapse:collapse; background:var(--panel);
     border:1px solid var(--line); border-radius:14px; overflow:hidden; }
   th, td { padding:11px 14px; text-align:left; font-size:14px; }
@@ -61,16 +66,14 @@
   tr:hover td { background:rgba(255,255,255,.02); }
   .medal { font-size:16px; }
   .pname { font-weight:700; }
-  .psub { color:var(--sub); font-size:12px; }
   .kind { font-size:11px; border-radius:6px; padding:2px 8px; border:1px solid var(--line);
-    color:var(--sub); }
+    color:var(--sub); white-space:nowrap; }
   .elo { font-weight:800; color:var(--gold); }
   .total { font-weight:800; color:var(--acc); }
   .loading { color:var(--sub); padding:26px; text-align:center; font-size:13px; }
   .spin { display:inline-block; animation:rot 1s linear infinite; }
   @keyframes rot { to { transform:rotate(360deg); } }
 
-  /* ---- 选手卡片 ---- */
   .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:14px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:14px;
           padding:16px; position:relative; overflow:hidden; }
@@ -89,14 +92,12 @@
   .bar .v { text-align:right; color:var(--txt); }
   .noscore { color:var(--sub); font-size:13px; margin-top:14px; }
 
-  /* ---- 双栏 ---- */
   .cols { display:grid; grid-template-columns:1.15fr .85fr; gap:14px; }
   @media (max-width:900px){ .cols { grid-template-columns:1fr; } }
 
-  /* ---- 对局列表 ---- */
   .matches { background:var(--panel); border:1px solid var(--line); border-radius:14px; }
   .match { padding:12px 16px; border-bottom:1px solid var(--line); display:flex;
-           align-items:center; gap:10px; font-size:14px; }
+           align-items:center; gap:10px; font-size:14px; flex-wrap:wrap; }
   .match:last-child { border-bottom:none; }
   .vs { color:var(--sub); font-size:12px; }
   .win { color:var(--green); font-weight:800; }
@@ -107,27 +108,75 @@
     border-radius:7px; padding:3px 9px; font-size:11px; cursor:pointer; }
   .btn-mini:hover { border-color:var(--acc2); }
 
-  /* ---- 演控台 ---- */
   .panelbox { background:var(--panel); border:1px solid var(--line); border-radius:14px;
               padding:18px; display:grid; gap:18px; }
-  .pb h3 { font-size:14px; margin-bottom:10px; color:var(--txt); }
+  .pb h3 { margin:0 0 10px; font-size:14px; }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   select, input[type=number], input[type=text] {
     background:var(--panel2); color:var(--txt); border:1px solid var(--line);
     border-radius:9px; padding:8px 10px; font-size:13px; outline:none; }
   select:focus, input:focus { border-color:var(--acc); }
-  button { background:linear-gradient(90deg,var(--acc),#ff9a5b); color:#14100c;
+  button.big { background:linear-gradient(90deg,var(--acc),#ff9a5b); color:#14100c;
     border:none; border-radius:9px; padding:9px 18px; font-size:13px; font-weight:700;
     cursor:pointer; transition:filter .15s; }
-  button:hover { filter:brightness(1.1); }
-  button.alt { background:var(--panel2); color:var(--acc2); border:1px solid var(--line); }
-  button:disabled { opacity:.5; cursor:wait; }
+  button.big:hover { filter:brightness(1.1); }
+  button.big.alt { background:var(--panel2); color:var(--acc2); border:1px solid var(--line); }
+  button.big:disabled { opacity:.5; cursor:wait; }
   .status { font-size:12px; color:var(--sub); min-height:16px; }
   .status.ok { color:var(--green); }
   .status.err { color:var(--red); }
   .upload-box { border:1.5px dashed var(--line); border-radius:12px; padding:16px;
-    text-align:center; color:var(--sub); font-size:13px; }
+    text-align:center; color:var(--sub); font-size:13px; cursor:pointer; }
   .upload-box.has { border-color:var(--acc2); color:var(--txt); }
+
+  /* ============ 文档/教学页 ============ */
+  .grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+  .info { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .info .t { font-weight:700; font-size:14px; margin-bottom:8px; }
+  .info .d { color:var(--sub); font-size:13px; line-height:1.8; }
+  .info .d b { color:var(--txt); }
+  .num { color:var(--acc2); font-weight:700; }
+
+  .rps { display:flex; align-items:stretch; gap:10px; flex-wrap:wrap; margin:6px 0; }
+  .rps .node { flex:1; min-width:150px; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:14px; text-align:center; }
+  .rps .node .em { font-size:30px; }
+  .rps .node .nm { font-weight:800; margin-top:6px; }
+  .rps .node .beats { font-size:12px; color:var(--green); margin-top:4px; }
+  .rps .node .weak { font-size:12px; color:var(--red); margin-top:2px; }
+
+  pre { background:#0d1017; border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; overflow:auto; font-size:12.5px; line-height:1.75;
+    font-family:"SF Mono",Menlo,Consolas,monospace; color:#c8d3e4; position:relative; }
+  pre .c { color:#5d6b80; }
+  pre .k { color:#ff9a5b; }
+  code { background:var(--panel2); border-radius:5px; padding:1px 6px;
+    font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; color:var(--acc2); }
+  .codewrap { position:relative; margin:10px 0; }
+  .codewrap .cp { position:absolute; top:8px; right:8px; z-index:2; }
+
+  .steps { counter-reset:st; display:grid; gap:10px; }
+  .step-li { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px 16px 12px 52px; position:relative; font-size:13.5px; line-height:1.8; }
+  .step-li::before { counter-increment:st; content:counter(st);
+    position:absolute; left:14px; top:12px; width:26px; height:26px; border-radius:8px;
+    background:rgba(255,122,54,.15); color:var(--acc); font-weight:800; display:flex;
+    align-items:center; justify-content:center; font-size:13px; }
+  .step-li b { color:var(--txt); }
+
+  .dl-btn { display:inline-flex; align-items:center; gap:8px; background:linear-gradient(90deg,var(--acc),#ff9a5b);
+    color:#14100c; font-weight:800; border-radius:11px; padding:11px 20px; font-size:14px; }
+  .callout { border-left:3px solid var(--acc2); background:rgba(90,215,230,.06);
+    border-radius:0 12px 12px 0; padding:12px 16px; font-size:13px; color:var(--sub);
+    line-height:1.8; margin:12px 0; }
+  .callout b { color:var(--txt); }
+  .callout.warn { border-color:var(--gold); background:rgba(255,209,102,.06); }
+
+  details { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px 16px; margin-bottom:8px; }
+  summary { cursor:pointer; font-size:14px; font-weight:700; }
+  details .d { color:var(--sub); font-size:13px; line-height:1.8; margin-top:8px; }
+  details .d b { color:var(--txt); }
 
   footer { border-top:1px solid var(--line); margin-top:40px; padding:22px 0 34px;
     color:var(--sub); font-size:12px; line-height:1.9; }
@@ -137,7 +186,12 @@
 <body>
 <header><div class="wrap nav">
   <div class="logo">🥊 立回斗士<b>·AI 竞技场</b></div>
-  <div class="tagline">上传你的智能体 → 隐藏池评分 → 上榜</div>
+  <div class="tabs">
+    <button class="tab active" data-v="arena">竞技场</button>
+    <button class="tab" data-v="rules">规则说明</button>
+    <button class="tab" data-v="learn">参赛教学</button>
+    <button class="tab" data-v="api">API 文档</button>
+  </div>
   <div class="spacer"></div>
   <div class="chips">
     <div class="chip">选手 <b id="st-agents">–</b></div>
@@ -147,6 +201,9 @@
 </div></header>
 
 <div class="wrap">
+
+<!-- ================= 竞技场 ================= -->
+<div class="view on" id="view-arena">
   <div class="hero">
     <h1>让AI替你上场打排位</h1>
     <p>1D 极简格斗 · 立回（距离管控）× 打投择（猜拳环）· 无头确定性执行 · 回放防篡改</p>
@@ -184,19 +241,19 @@
             <span class="vs">vs</span>
             <select id="m-b"></select>
             <input type="number" id="m-seed" value="42" style="width:74px" title="种子">
-            <button id="btn-match">开赛</button>
+            <button class="big" id="btn-match">开赛</button>
           </div>
         </div>
         <div class="pb">
           <h3>隐藏池排位评分（8 风格化对手 × 3 局）</h3>
           <div class="row">
             <select id="sc-agent"></select>
-            <button id="btn-score" class="alt">评分</button>
+            <button class="big alt" id="btn-score">评分</button>
           </div>
         </div>
         <div class="pb">
           <h3>重跑锦标赛（全体循环赛）</h3>
-          <div class="row"><button id="btn-tour" class="alt">开赛（每对 6 局）</button></div>
+          <div class="row"><button class="big alt" id="btn-tour">开赛（每对 6 局）</button></div>
         </div>
         <div class="pb">
           <h3>上传你的智能体</h3>
@@ -205,8 +262,11 @@
           </div>
           <div class="row" style="margin-top:10px">
             <input type="text" id="up-name" placeholder="选手名（留空取文件名）" style="flex:1">
-            <button id="btn-upload">注册参赛</button>
+            <button class="big" id="btn-upload">注册参赛</button>
             <input type="file" id="up-file" accept=".py" hidden>
+          </div>
+          <div class="callout" style="margin-bottom:0;margin-top:12px">
+            第一次参赛？先去 <b>「参赛教学」</b>页下载官方模板，10 行代码即可登场。
           </div>
         </div>
         <div class="status" id="status"></div>
@@ -214,6 +274,281 @@
     </div>
   </section>
 </div>
+
+<!-- ================= 规则说明 ================= -->
+<div class="view" id="view-rules">
+  <div class="hero">
+    <h1>规则说明</h1>
+    <p>规则与执行内核同源：本页招式数据实时读取服务端规则包 <code>rules/default.json</code>（内容哈希
+       <span class="num" id="rules-sha">…</span>），改一个数字即成新规则变体。</p>
+  </div>
+
+  <section>
+    <h2>🌍 世界概览</h2>
+    <div class="grid3">
+      <div class="info"><div class="t">📐 一维舞台</div>
+        <div class="d">直线 <b>0 ~ 1</b>，双方不可穿身（最小间距 <span class="num" id="r-gap">–</span>）。
+        距离决定一切——你的所有招式都有一个「够得着」的圈。</div></div>
+      <div class="info"><div class="t">⏱ 帧级实时</div>
+        <div class="d">每步 = <b>1 帧</b>（60fps 语义），双方<b>同时</b>决策。
+        回合上限 <span class="num" id="r-ticks">–</span> 帧（15 秒），时间到按剩余血量判定。</div></div>
+      <div class="info"><div class="t">🎯 胜负判定</div>
+        <div class="d">打空对方血量 → <b>K.O.</b>；时间到 → 血量高者<b>判定胜</b>；
+        血量相同 → 平局。硬直中被击中会挨打还不了手。</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>✊✋✌️ 猜拳环 <span class="hint">格斗博弈的原子结构</span></h2>
+    <div class="rps">
+      <div class="node"><div class="em">👊</div><div class="nm">打击（轻/重击）</div>
+        <div class="beats">克 投技：对方出投时你先打到他</div>
+        <div class="weak">被 防御 挡住（只掉削减伤害）</div></div>
+      <div class="node"><div class="em">🤼</div><div class="nm">投技</div>
+        <div class="beats">克 防御：抓起来摔</div>
+        <div class="weak">被 打击 打断（启动慢、距离短）</div></div>
+      <div class="node"><div class="em">🛡</div><div class="nm">防御</div>
+        <div class="beats">克 打击：只吃 <span class="num" id="r-chip">–</span> 削减伤害</div>
+        <div class="weak">被 投技 破防；且不能移动</div></div>
+    </div>
+    <div class="callout"><b>立回（Footsies）</b>：在三个射程圈（投
+      <span class="num" id="r-throw">–</span> / 轻 <span class="num" id="r-light">–</span> /
+      重 <span class="num" id="r-heavy">–</span>）之外的一切移动博弈。站在对方射程外、
+      自己射程内，引诱对方挥空，然后惩罚他的收招——这就是本游戏的全部灵魂。</div>
+  </section>
+
+  <section>
+    <h2>📊 招式表 <span class="hint">与执行内核同一份数据</span></h2>
+    <div id="moves-table"><div class="loading">读取规则包…</div></div>
+    <div class="callout"><b>帧数据小课堂</b>：出招分三段——<b>启动</b>（酝酿，此时被投会被抓）、
+      <b>判定</b>（能命中对方的窗口）、<b>收招</b>（硬直，还不了手，最危险）。
+      「确反」= 惩罚对方的收招硬直。重击收招 <span class="num" id="r-rec">–</span> 帧是全场最大的红包。</div>
+  </section>
+
+  <section>
+    <h2>⚙️ 世界常数</h2>
+    <div class="grid3">
+      <div class="info"><div class="t">🚶 移动速度</div><div class="d">
+        前进 <span class="num" id="r-wf">–</span> / 后撤 <span class="num" id="r-wb">–</span> 每帧
+        （后撤更慢——进攻有速度优势）</div></div>
+      <div class="info"><div class="t">💥 击退</div><div class="d">
+        命中击退 <span class="num" id="r-ph">–</span> / 被防击退 <span class="num" id="r-pb">–</span>
+        （被打会拉开距离，影响下一轮立回）</div></div>
+      <div class="info"><div class="t">❤️ 血量</div><div class="d">
+        双方 <span class="num" id="r-hp">–</span> HP；被防的打击也掉 1~2 点削减伤害，龟防不能无限拖</div></div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= 参赛教学 ================= -->
+<div class="view" id="view-learn">
+  <div class="hero">
+    <h1>参赛教学</h1>
+    <p>三种流派任选其一；最快的路径 10 行代码、5 分钟登场。所有参赛方式共用同一 Agent 协议。</p>
+  </div>
+
+  <section>
+    <h2>🧭 新手之路（脚本流 · 推荐）</h2>
+    <div class="steps">
+      <div class="step-li"><b>下载官方模板</b>
+        <div class="codewrap" style="margin:8px 0 0">
+          <a class="dl-btn" href="/my_agent_template.py" download>⬇️ 下载 my_agent_template.py</a>
+        </div></div>
+      <div class="step-li"><b>写下你的立回哲学</b>：打开模板，只需实现
+        <code>act(obs)</code> —— 输入 21 维观测，返回动作 <code>0~5</code>。模板里有完整的观测速查表和 5 个起手式注释。</div>
+      <div class="step-li"><b>上传参赛</b>：回到「竞技场」页上传这个 .py 文件（服务器自动跑冒烟测试），
+        或用命令行：
+        <div class="codewrap"><button class="btn-mini cp" data-copy="curl -F &quot;file=@my_agent_template.py&quot; -F &quot;name=我的名字&quot; http://localhost:8000/api/agents/upload">复制</button>
+<pre>curl -F "file=@my_agent_template.py" -F "name=我的名字" \
+     http://localhost:8000/api/agents/upload</pre></div></div>
+      <div class="step-li"><b>拿分上榜</b>：演控台点「评分」（隐藏池 8 对手 × 3 场），
+        再点「开赛」进锦标赛。输了对局可在「最近对局」里下载回放复盘。</div>
+    </div>
+    <div class="callout"><b>榜样</b>：现榜首「反投侠」只有 40 行 if-else——作者看了 PPO 被投技狂克制的直播回放，
+      写了「贴身绝不站防、轻击压制投技」的策略，隐藏池 86.9 分登顶。<b>看回放找弱点 &gt; 盲目调参</b>。</div>
+  </section>
+
+  <section>
+    <h2>🔭 观测向量手册 <span class="hint">你能看到的一切（21 维，自己视角）</span></h2>
+    <table><thead><tr><th>下标</th><th>含义</th><th>取值</th></tr></thead><tbody>
+      <tr><td><code>obs[0]</code></td><td>我方 HP / 100</td><td>0 ~ 1</td></tr>
+      <tr><td><code>obs[1]</code></td><td>敌方 HP / 100</td><td>0 ~ 1</td></tr>
+      <tr><td><code>obs[2]</code></td><td><b>交战距离</b>（立回核心）</td><td>0.05 ~ 1</td></tr>
+      <tr><td><code>obs[3] / [4]</code></td><td>我方 / 敌方位置 x（自己视角坐标，右侧镜像，无需关心站位）</td><td>0 ~ 1</td></tr>
+      <tr><td><code>obs[5:11]</code></td><td>我方状态 one-hot</td><td>见下表</td></tr>
+      <tr><td><code>obs[11:17]</code></td><td><b>敌方状态 one-hot</b></td><td>见下表</td></tr>
+      <tr><td><code>obs[17] / [18]</code></td><td>我方 / 敌方 防御中</td><td>0 或 1</td></tr>
+      <tr><td><code>obs[19] / [20]</code></td><td>我方 / 敌方 硬直剩余进度</td><td>0 ~ 1</td></tr>
+    </tbody></table>
+    <table style="margin-top:10px"><thead><tr>
+      <th>状态编码</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+    <tbody><tr><td>含义</td><td>待机</td><td>启动（出招中）</td><td>判定（能命中）</td>
+      <td><b>收招（硬直）</b></td><td>防御硬直</td><td>受击硬直</td></tr></tbody></table>
+    <table style="margin-top:10px"><thead><tr>
+      <th>动作</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+    <tbody><tr><td>含义</td><td>后撤</td><td>前进</td><td>轻击</td><td>重击</td><td>防御</td><td>投技</td></tr></tbody></table>
+  </section>
+
+  <section>
+    <h2>🎓 战术四课 <span class="hint">从冠军们的回放里总结</span></h2>
+    <div class="grid3">
+      <div class="info"><div class="t">一 · 立回是生命线</div><div class="d">
+        三个射程圈：投 <b>0.07</b> / 轻 <b>0.13</b> / 重 <b>0.19</b>。
+        理想站位是「对方打不到我、我随时能打到他」。距离观测在 <code>obs[2]</code>。</div></div>
+      <div class="info"><div class="t">二 · 确反经济学</div><div class="d">
+        对方<b>收招硬直</b>（状态 3）且在重击射程内 → 重击白拿 18 伤害。
+        反过来：你的重击被防 = 送对方一个确反机会。盲挥重击是大忌。</div></div>
+      <div class="info"><div class="t">三 · 打投择</div><div class="d">
+        贴身时的猜拳：对方防御 → <b>投技</b>破防；对方想投你 → <b>打击</b>打断；
+        对方出招 → 防御或后撤。读对方的习惯，比随机出招强十倍。</div></div>
+      <div class="info"><div class="t">四 · 不送保平安</div><div class="d">
+        被防的重击、落空的投技、贴身的傻站——都是白给。
+        看不清局势时，<b>后撤 + 防御</b> 重新整理立回，永远比赌一把强。</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>🧪 炼丹流（RL 玩家）</h2>
+    <div class="info"><div class="d">
+      仓库自带训练器（stable-baselines3 PPO，CPU 约 17 秒）：
+      <div class="codewrap"><button class="btn-mini cp" data-copy="python train.py">复制</button>
+<pre>python train.py                          <span class="c"># 训练 + 50 场评估，生成 fighting_ppo.zip</span>
+python arena.py run ppo:fighting_ppo.zip footsies   <span class="c"># 用模型参赛（本地 CLI）</span>
+python score.py ppo:fighting_ppo.zip     <span class="c"># 本地隐藏池预估分</span></pre></div>
+      <div class="callout warn" style="margin-bottom:0"><b>注意</b>：演示阶段官网上传通道只收 .py 策略文件；
+      RL 模型（.zip）暂由管理员放入镜像参赛。本地 CLI 全功能开放。另有前车之鉴：
+      PPO 对训练对手 96% 胜率，隐藏池只有 55 分——<b>单一对手过拟合是排位大忌</b>。</div>
+    </div></div>
+  </section>
+
+  <section>
+    <h2>🧠 大模型流（LLM 玩家）<span class="hint">决策窗口制</span></h2>
+    <div class="info"><div class="d">
+      LLM 无法逐帧决策？平台提供 <b>15 帧决策窗口</b>：每 15 帧调用一次你的 HTTP 服务，
+      期间自动重复上次动作（重复防御=持续防御，天然合法）。超时 5 秒自动防御兜底。
+      把任意决策逻辑包成这个协议即可：
+      <div class="codewrap"><button class="btn-mini cp" data-copy="# my_llm.py —— 15 行起一个决策服务&#10;from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer&#10;import json&#10;&#10;class H(BaseHTTPRequestHandler):&#10;    def do_POST(self):&#10;        body = json.loads(self.rfile.read(int(self.headers[&quot;Content-Length&quot;])))&#10;        obs = body[&quot;obs&quot;]&#10;        d = obs[2]; opp = obs[11:17].index(max(obs[11:17]))&#10;        action = 3 if (opp == 3 and d &lt;= 0.19) else (1 if d &gt; 0.16 else 2)&#10;        # ↑ 换成你的 LLM 调用（5 秒内必须返回）&#10;        out = json.dumps({&quot;action&quot;: action}).encode()&#10;        self.send_response(200); self.send_header(&quot;Content-Length&quot;, str(len(out)))&#10;        self.end_headers(); self.wfile.write(out)&#10;    def log_message(self, *a): pass&#10;&#10;ThreadingHTTPServer((&quot;0.0.0.0&quot;, 8080), H).serve_forever()">复制</button>
+<pre><span class="c"># my_llm.py —— 15 行起一个决策服务</span>
+<span class="k">from</span> http.server <span class="k">import</span> BaseHTTPRequestHandler, ThreadingHTTPServer
+<span class="k">import</span> json
+
+<span class="k">class</span> <span class="k">H</span>(BaseHTTPRequestHandler):
+    <span class="k">def</span> do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers[<span class="c">"Content-Length"</span>])))
+        obs = body[<span class="c">"obs"</span>]              <span class="c"># 21 维观测，见手册</span>
+        d = obs[2]; opp = obs[11:17].index(max(obs[11:17]))
+        action = 3 <span class="k">if</span> (opp == 3 <span class="k">and</span> d &lt;= 0.19) <span class="k">else</span> (1 <span class="k">if</span> d &gt; 0.16 <span class="k">else</span> 2)
+        <span class="c"># ↑ 换成你的 LLM 调用（5 秒内必须返回）</span>
+        out = json.dumps({<span class="c">"action"</span>: action}).encode()
+        self.send_response(200); self.send_header(<span class="c">"Content-Length"</span>, str(len(out)))
+        self.end_headers(); self.wfile.write(out)
+    <span class="k">def</span> log_message(self, *a): <span class="k">pass</span>
+
+ThreadingHTTPServer((<span class="c">"0.0.0.0"</span>, 8080), H).serve_forever()</pre></div>
+      本地验证：<code>python my_llm.py &amp;</code> 然后
+      <code>python arena.py run http:127.0.0.1:8080 random</code>。
+      每次调用的延迟与次数都会写进回放 meta（成本可观测）。</div></div>
+  </section>
+
+  <section>
+    <h2>💻 本地 CLI（进阶玩家）</h2>
+    <div class="info"><div class="d">克隆本仓库后（需 Python 3.10+ 与 numpy/gymnasium/stable-baselines3）：
+      <div class="codewrap"><button class="btn-mini cp" data-copy="python arena.py run file:my_agent_template.py footsies --seed 0    # 试炼一场&#10;python arena.py batch file:my_agent_template.py hidden:turtle --games 20&#10;python score.py file:my_agent_template.py          # 隐藏池评分（与服务器同口径）&#10;python play.py --replay replays/xxx.json          # 卡通画面复放找弱点&#10;python replay.py verify replays/xxx.json          # 回放防篡改校验">复制</button>
+<pre>python arena.py run file:my_agent_template.py footsies --seed 0   <span class="c"># 试炼一场</span>
+python arena.py batch file:my_agent_template.py hidden:turtle --games 20
+python score.py file:my_agent_template.py        <span class="c"># 隐藏池评分（与服务器同口径）</span>
+python play.py --replay replays/xxx.json         <span class="c"># 卡通画面复放找弱点</span>
+python replay.py verify replays/xxx.json         <span class="c"># 回放防篡改校验</span></pre></div>
+      官网服务器上的回放落在仓库 <code>data/replays/</code>（挂载卷），可直接复放。</div></div>
+  </section>
+
+  <section>
+    <h2>❓ FAQ</h2>
+    <details><summary>上传报「策略无法运行」？</summary><div class="d">
+      常见原因：① 文件里没有 <code>class Agent</code>；② <code>act()</code> 返回了 0~5 之外的值；
+      ③ 代码抛异常（上传时会自动与随机君打一场冒烟测试，跑不完即拒绝）。
+      先在本地跑 <code>python arena.py run file:你的文件 random</code> 排错。</div></details>
+    <details><summary>评分和锦标赛要多久？会掉分吗？</summary><div class="d">
+      评分 = 隐藏池 8 对手 × 3 场（约 10~30 秒）；锦标赛每对 6 局。
+      当前演示版评分只更新选手页的三维分，Elo 以锦标赛为准——约战不直接改榜，
+      想上分请让管理员重跑锦标赛（或等待赛季结算功能）。</div></details>
+    <details><summary>我在左侧还是右侧？公平吗？</summary><div class="d">
+      观测已做<b>自己视角镜像</b>（代码无需关心站位）；评分与锦标赛<b>左右侧轮换</b>，
+      消除位置偏差。同种子对局逐帧确定，可作争议仲裁。</div></details>
+    <details><summary>隐藏池是什么？能针对性练吗？</summary><div class="d">
+      终榜对手是 8 个风格化隐藏 Bot（压制流/龟防流/投技狂/确反大师…），
+      参数不公开——这正是「稳定性」维度的意义：只会打一种风格的 AI 会在这里露馅。
+      公开榜用 2 个明牌对手（参数见仓库 README），可针对性训练。</div></details>
+    <details><summary>我的策略会被泄露吗？</summary><div class="d">
+      演示阶段策略文件明文存于服务器 <code>data/uploads/</code>（本地 Docker 即你自己机器）。
+      生产平台应提供加密/托管选项，属平台工程范围。</div></details>
+  </section>
+</div>
+
+<!-- ================= API 文档 ================= -->
+<div class="view" id="view-api">
+  <div class="hero">
+    <h1>API 文档</h1>
+    <p>一切官网功能的底层接口。交互式调试（Try it out）见 FastAPI 自动文档：
+       <a href="/docs" target="_blank"><code>/docs</code></a></p>
+  </div>
+
+  <section>
+    <h2>📡 端点一览</h2>
+    <table><thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead><tbody>
+      <tr><td><code>GET</code></td><td><code>/api/agents</code></td><td>选手列表（含最新三维评分）</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/leaderboard</code></td><td>当前 Elo 榜单 + 对阵矩阵</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/matches?limit=20</code></td><td>最近对局（含回放文件名）</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/stats</code></td><td>选手/对局/回放计数</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/rules</code></td><td>规则包全文 + 内容哈希（规则透明）</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/replays/{文件名}</code></td><td>回放 JSON（含逐帧动作与 HP 轨迹）</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/match</code></td><td>约战：<code>{"a": id, "b": id, "seed": 42}</code></td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/score/{agent_id}</code></td><td>触发隐藏池三维评分（24 场）</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/tournament</code></td><td>重跑循环赛：<code>{"games": 6}</code></td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/agents/upload</code></td><td>上传策略（multipart：<code>file</code> + 可选 <code>name</code>）</td></tr>
+    </tbody></table>
+  </section>
+
+  <section>
+    <h2>🧾 调用示例</h2>
+    <div class="codewrap"><button class="btn-mini cp" data-copy='curl -F "file=@my_agent.py" -F "name=我的名字" http://localhost:8000/api/agents/upload'>复制</button>
+<pre><span class="c"># 1) 注册参赛（自动冒烟测试）</span>
+curl -F "file=@my_agent.py" -F "name=我的名字" http://localhost:8000/api/agents/upload</pre></div>
+    <div class="codewrap"><button class="btn-mini cp" data-copy='curl -X POST http://localhost:8000/api/match -H "Content-Type: application/json" -d "{\"a\": \"<id1>\", \"b\": \"<id2>\", \"seed\": 7}"'>复制</button>
+<pre><span class="c"># 2) 约战一局（选手 id 从 /api/agents 获取）</span>
+curl -X POST http://localhost:8000/api/match -H "Content-Type: application/json" \
+     -d '{"a": "&lt;id1&gt;", "b": "&lt;id2&gt;", "seed": 7}'</pre></div>
+    <div class="codewrap"><button class="btn-mini cp" data-copy="curl http://localhost:8000/api/leaderboard | python -m json.tool">复制</button>
+<pre><span class="c"># 3) 拉取榜单</span>
+curl http://localhost:8000/api/leaderboard | python -m json.tool</pre></div>
+  </section>
+
+  <section>
+    <h2>⚖️ 公平性与反作弊</h2>
+    <div class="grid3">
+      <div class="info"><div class="t">🔒 可信执行</div><div class="d">
+        对局与评分全部在<b>服务端</b>发生；规则包带内容哈希（sha256），
+        规则一变旧回放即校验失败。</div></div>
+      <div class="info"><div class="t">🎞 回放防篡改</div><div class="d">
+        回放 = 种子 + 双方动作序列 + <b>逐帧 HP 轨迹</b>；校验器整局重放比对，
+        改一个有效动作即 FAIL。</div></div>
+      <div class="info"><div class="t">⚖️ 对称与确定</div><div class="d">
+        观测自己视角镜像；评分/锦标赛<b>左右侧轮换</b>；同种子逐帧确定
+        ——争议可「重放给所有人看」。</div></div>
+      <div class="info"><div class="t">🧯 成本可观测</div><div class="d">
+        LLM/HTTP 接入的调用次数、平均延迟、超时数写入回放 meta，
+        为成本预算模块预留数据。</div></div>
+      <div class="info"><div class="t">🤖 反过拟合</div><div class="d">
+        公开榜打明牌对手，终榜打隐藏池（8 风格 Bot）——
+        单一对手 96% 胜率 ≠ 高分，详见选手页 PPO 的故事。</div></div>
+      <div class="info"><div class="t">⚠️ 演示版边界</div><div class="d">
+        file: 策略为信任运行（无沙箱）；隐藏池参数当前内置镜像，
+        生产环境应仅存服务端。均属平台工程后续项。</div></div>
+    </div>
+  </section>
+</div>
+
+</div><!-- /wrap -->
 
 <footer><div class="wrap">
   <b>平台原则</b>：任务先于平台 · 评分先于排行 · 模板先于自由 · 结果先于热度<br>
@@ -223,8 +558,15 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const fmt = n => (n ?? '–');
 
+/* ---------- 标签页 ---------- */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + t.dataset.v));
+  window.scrollTo({top: 0});
+});
+
+/* ---------- 通用 ---------- */
 async function api(path, opts) {
   const r = await fetch(path, opts);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
@@ -235,8 +577,13 @@ async function busy(btn, fn) {
   const old = btn.textContent; btn.disabled = true; btn.textContent = old + '…';
   try { return await fn(); } finally { btn.disabled = false; btn.textContent = old; }
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest('.cp');
+  if (b) { navigator.clipboard?.writeText(b.dataset.copy); b.textContent = '已复制✓';
+           setTimeout(() => b.textContent = '复制', 1500); }
+});
 
-/* ---------- 渲染 ---------- */
+/* ---------- 竞技场渲染 ---------- */
 function bar(label, val, max, color) {
   const pct = Math.max(0, Math.min(100, val / max * 100));
   return `<div class="bar"><span>${label}</span><div class="tr">
@@ -245,7 +592,7 @@ function bar(label, val, max, color) {
 }
 
 function renderLeaderboard(data) {
-  if (!data.ready) return;  // 保持 loading 占位
+  if (!data.ready) return;
   $('lb-updated').textContent = `更新于 ${data.updated} · 每对 ${data.games_per_pair} 局`;
   const medals = ['🥇','🥈','🥉'];
   $('leaderboard').innerHTML = `<table><thead><tr>
@@ -313,7 +660,6 @@ function copyCmd(replay) {
   setStatus(`已复制：${cmd}`, 'ok');
 }
 
-/* ---------- 加载与轮询 ---------- */
 function fillSelects(agents) {
   for (const [sel, def] of [[$('m-a'), 0], [$('m-b'), 1], [$('sc-agent'), 0]]) {
     sel.innerHTML = agents.map(a =>
@@ -334,7 +680,33 @@ async function loadAll() {
   } catch (e) { setStatus('加载失败: ' + e.message, 'err'); }
 }
 
-/* ---------- 动作 ---------- */
+/* ---------- 规则页（数据与服务端同源） ---------- */
+const KIND_CN = {move: '移动', strike: '打击', throw: '投技', guard: '防御'};
+async function loadRules() {
+  try {
+    const r = await api('/api/rules');
+    $('rules-sha').textContent = r.sha256.slice(0, 16) + '…';
+    $('r-gap').textContent = r.min_gap; $('r-ticks').textContent = r.max_ticks;
+    $('r-chip').textContent = Math.round(r.chip * 100) + '%';
+    $('r-wf').textContent = r.walk.forward; $('r-wb').textContent = r.walk.back;
+    $('r-ph').textContent = r.push.hit; $('r-pb').textContent = r.push.block;
+    $('r-hp').textContent = r.max_hp;
+    const mv = n => (r.moves.find(m => m.name === n) || {});
+    $('r-throw').textContent = mv('投技').reach; $('r-light').textContent = mv('轻击').reach;
+    $('r-heavy').textContent = mv('重击').reach; $('r-rec').textContent = mv('重击').recovery;
+    $('moves-table').innerHTML = `<table><thead><tr>
+      <th>按键</th><th>招式</th><th>类型</th><th>启动</th><th>判定</th><th>收招</th>
+      <th>距离</th><th>伤害</th><th>命中硬直</th><th>被防硬直</th></tr></thead><tbody>` +
+      r.moves.map(m => `<tr><td><code>${m.slot}</code></td><td><b>${m.name}</b></td>
+        <td><span class="kind">${KIND_CN[m.kind] || m.kind}${m.dir ? '·' + (m.dir === 'back' ? '后' : '前') : ''}</span></td>
+        <td>${m.startup ?? '–'}</td><td>${m.active ?? '–'}</td><td>${m.recovery ?? '–'}</td>
+        <td>${m.reach ?? '–'}</td><td>${m.damage ?? '–'}</td>
+        <td>${m.hitstun ?? '–'}</td><td>${m.blockstun ?? '–'}</td></tr>`).join('') +
+      '</tbody></table>';
+  } catch (e) { $('moves-table').innerHTML = `<div class="loading">规则包读取失败: ${e.message}</div>`; }
+}
+
+/* ---------- 演控台动作 ---------- */
 $('btn-match').onclick = () => busy($('btn-match'), async () => {
   try {
     const m = await api('/api/match', {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -395,6 +767,7 @@ $('btn-upload').onclick = () => busy($('btn-upload'), async () => {
 });
 
 loadAll();
+loadRules();
 setInterval(loadAll, 8000);
 </script>
 </body>

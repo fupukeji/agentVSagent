@@ -29,6 +29,8 @@ sys.path.insert(0, str(ROOT))
 from agents import load_agent          # noqa: E402
 from arena import play_one             # noqa: E402
 from elo import tournament             # noqa: E402
+from fighting_env import load_rules    # noqa: E402
+from replay import rules_digest        # noqa: E402
 from score import evaluate             # noqa: E402
 
 DATA = ROOT / "data"
@@ -116,6 +118,14 @@ def api_leaderboard():
     data = json.loads(p.read_text(encoding="utf-8"))
     data["ready"] = True
     return data
+
+
+@app.get("/api/rules")
+def api_rules():
+    """公开规则包：官网规则页与执行内核同源（规则透明 + 内容哈希）。"""
+    raw = dict(load_rules(None).raw)
+    raw["sha256"] = rules_digest(raw)
+    return raw
 
 
 @app.get("/api/matches")
