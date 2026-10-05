@@ -214,7 +214,7 @@ fighting-rl/
 
 ---
 
-### Task 4：隐藏对手池（hidden_bots.py）—— P1，半天
+### Task 4：隐藏对手池（hidden_bots.py）—— P1，半天 ✅
 
 **目标**：落实平台反过拟合原则：**公开榜打明牌 Bot，终榜打隐藏池**。同时是「稳定性」评分的数据来源。
 
@@ -239,8 +239,9 @@ fighting-rl/
 4. `python hidden_bots.py` 自测：每个 Bot 与 `random` 打 20 场，打印各自胜率（都应显著 > 50%，用于确认没有废 Bot）。
 
 **验收**：
-- [ ] 自测命令运行通过，8 个 Bot 对 random 胜率全部 > 60%。
-- [ ] `arena.py` 能用 `hidden:thrower` 这类名字引用池内 Bot。
+- [x] 自测命令运行通过，8 个 Bot 对 random 胜率全部 > 60%。
+  （turtle/spacer 初版不达标：龟防流被随机投技克制、游走流轻击够不着交战带；在保持表格规定 punish/want_dist 不变的前提下仅调 mixup 达标——风格克制本身保留）
+- [x] `arena.py` 能用 `hidden:thrower` 这类名字引用池内 Bot。
 
 ---
 
