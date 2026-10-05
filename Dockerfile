@@ -3,9 +3,10 @@ FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
-# torch CPU 优先（避免拉 CUDA 巨型镜像；aarch64 无 cpu 轮子时回退 PyPI）
-RUN (pip install torch --index-url https://download.pytorch.org/whl/cpu \
-     || pip install torch)
+# torch：PyPI 优先（arm64 的 PyPI 轮子即 CPU 版；x86_64 可用 cpu 索引避开 CUDA 巨包）
+RUN (pip install --no-cache-dir --timeout 120 torch \
+     || pip install --no-cache-dir --timeout 120 torch \
+        --index-url https://download.pytorch.org/whl/cpu)
 
 COPY requirements-server.txt .
 RUN pip install -r requirements-server.txt

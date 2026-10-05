@@ -194,7 +194,7 @@ async def api_upload(file: UploadFile = File(...), name: str = Form(None)):
     fname = re.sub(r"[^\w.-]", "_", file.filename)
     path = UPLOADS / fname
     path.write_text(raw.decode("utf-8"), encoding="utf-8")
-    spec = f"file:{path}"
+    spec = f"file:data/uploads/{fname}"   # 相对 cwd（容器 /app 与本地项目根均成立）
     try:
         agent = load_agent(spec)
         with LOCK:     # 冒烟测试：与随机君打一局，确认能跑完全场
