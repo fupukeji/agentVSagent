@@ -98,10 +98,10 @@ fighting-rl/
 
 ## 4. 任务清单（按顺序执行）
 
-### Task 0：工程初始化 —— P0，10 分钟
+### Task 0：工程初始化 —— P0，10 分钟 ✅
 
-- [ ] `git init`，创建 `.gitignore`（忽略 `.venv/`、`__pycache__/`、`*.zip` 不忽略——模型要提交、`replays/` 忽略）。
-- [ ] 首次提交全部现有文件，commit message：`init: 立回斗士单机版（env/train/play）`。
+- [x] `git init`，创建 `.gitignore`（忽略 `.venv/`、`__pycache__/`、`*.zip` 不忽略——模型要提交、`replays/` 忽略）。
+- [x] 首次提交全部现有文件，commit message：`init: 立回斗士单机版（env/train/play）`。
 
 **验收**：`git log` 有一条提交；`git status` 干净。
 
@@ -323,12 +323,12 @@ class Agent:
 
 ---
 
-### Task 8：收尾与文档 —— P2，1 小时
+### Task 8：收尾与文档 —— P2，1 小时 ✅
 
-- [ ] `README.md` 更新：新增「竞技场用法」一节（arena/score/elo/play --replay 的最小示例命令）、「Agent 接入协议」一节、公开榜对手说明。
-- [ ] 在 README 顶部加一行：`详细开发计划见 PLAN.md（已完成任务见其中勾选状态）`。
-- [ ] `PLAN.md` 中勾掉所有已完成项。
-- [ ] 最终 commit：`feat: 竞技任务包完成（arena/replay/score/elo/agents）`。
+- [x] `README.md` 更新：新增「竞技场用法」一节（arena/score/elo/play --replay 的最小示例命令）、「Agent 接入协议」一节、公开榜对手说明。
+- [x] 在 README 顶部加一行：`详细开发计划见 PLAN.md（已完成任务见其中勾选状态）`。
+- [x] `PLAN.md` 中勾掉所有已完成项。
+- [x] 最终 commit：`feat: 竞技任务包完成（arena/replay/score/elo/agents）`。
 
 ---
 
