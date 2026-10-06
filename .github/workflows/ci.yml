@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 语法检查
+        run: |
+          find . -name "*.py" \
+            -not -path "./.venv/*" -not -path "./data/*" -not -path "./.git/*" \
+            -print0 | xargs -0 -I{} python3 -c "import ast; ast.parse(open('{}').read())"
+          echo "✓ 全部 .py 语法通过"
+
+      - name: 前端交叉校验（id/函数引用完整性）
+        run: python3 scripts/check_frontend.py
+
+      - name: JS 语法检查
+        run: |
+          python3 - <<'EOF'
+          import re
+          from pathlib import Path
+          html = Path("static/index.html").read_text(encoding="utf-8")
+          Path("/tmp/check.js").write_text("\n".join(re.findall(r"<script>(.*?)</script>", html, re.S)))
+          EOF
+          node --check /tmp/check.js && echo "✓ JS 语法通过"
+
+      - name: 构建镜像（GHA 层缓存）
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: arena:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 容器启动冒烟
+        run: |
+          docker run -d --name ci-arena -p 8000:8000 arena:ci
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:8000/api/stats >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:8000/api/stats
+          curl -sf http://localhost:8000/ | grep -q "王者殿堂"
+          curl -sf http://localhost:8000/my_agent_template.py >/dev/null
+          docker logs ci-arena 2>&1 | grep -q "Uvicorn running"
+          echo "✓ 容器冒烟通过（API/官网/模板下载/启动日志）"
