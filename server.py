@@ -15,6 +15,7 @@
 import colorsys
 import hashlib
 import json
+import os
 import re
 import sys
 import threading
