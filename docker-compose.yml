@@ -1,6 +1,10 @@
 services:
   arena:
-    build: .
+    build:
+      context: .
+      args:
+        PIP_INDEX: ${PIP_INDEX:-https://pypi.org/simple}
+        TORCH_INDEX: ${TORCH_INDEX:-}
     container_name: foosies-arena
     ports:
       - "8000:8000"
