@@ -943,8 +943,12 @@ def _exhibition():
 def on_startup():
     first = not load_roster()
     if first:
-        save_roster([dict(e, id=uuid.uuid4().hex[:8]) for e in BUILTIN])
-        print(f"[kickoff] 已注册 {len(BUILTIN)} 名内置选手", flush=True)
+        seed = [dict(e, id=uuid.uuid4().hex[:8]) for e in BUILTIN]
+        if os.environ.get("ARENA_SKIP_PPO"):      # 磁盘紧张的服务器可裁掉 torch
+            seed = [e for e in seed if e["spec"] != "ppo"]
+            print("[kickoff] ARENA_SKIP_PPO=1：不注册 PPO 选手（免装 torch）", flush=True)
+        save_roster(seed)
+        print(f"[kickoff] 已注册 {len(seed)} 名内置选手", flush=True)
         threading.Thread(target=_kickoff, daemon=True).start()
     else:                      # 迁移：为历史选手补上形象（内置选手用签名形象）
         builtin_skin = {e["spec"]: e.get("skin") for e in BUILTIN}
