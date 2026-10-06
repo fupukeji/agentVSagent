@@ -19,6 +19,8 @@ import re
 import sys
 import threading
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -501,31 +503,68 @@ def api_tournament(body: dict | None = None):
     return data
 
 
+def _load_smtp():
+    """SMTP 配置（管理员放 data/smtp.json：host/port/user/pass/sender/ssl）。"""
+    p = DATA / "smtp.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def _send_mail(to, title, body):
+    cfg = _load_smtp()
+    if not cfg:
+        print("[notify] ⚠️ 未配置 SMTP（data/smtp.json），邮件通道不可用", flush=True)
+        return
+    import smtplib
+    from email.mime.text import MIMEText
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = title
+    msg["From"] = cfg.get("sender") or cfg.get("user") or "arena@localhost"
+    msg["To"] = to
+    host, port = cfg["host"], int(cfg.get("port", 25))
+    if cfg.get("ssl"):
+        with smtplib.SMTP_SSL(host, port, timeout=6) as s:
+            if cfg.get("user"):
+                s.login(cfg["user"], cfg.get("pass", ""))
+            s.sendmail(msg["From"], [to], msg.as_string())
+    else:
+        with smtplib.SMTP(host, port, timeout=6) as s:
+            if cfg.get("user"):
+                s.login(cfg["user"], cfg.get("pass", ""))
+            s.sendmail(msg["From"], [to], msg.as_string())
+
+
 def _notify(player, title, body):
-    """向玩家配置的通知通道推送（bark/飞书/通用 JSON webhook）。尽力而为，不阻塞。"""
+    """向玩家配置的通知通道推送（email/bark/飞书/通用 JSON webhook）。尽力而为，不阻塞。"""
     cfg = player.get("notify")
-    if not cfg or not cfg.get("url"):
+    if not cfg:
         return
     def _send():
-        url, typ = cfg["url"], cfg.get("type", "json")
+        typ = cfg.get("type", "json")
         try:
-            import urllib.request as _u
-            if typ == "bark":
-                q = urllib.parse.urlencode({"title": title, "body": body, "group": "arena"})
-                sep = "&" if "?" in url else "?"
-                _u.urlopen(_u.Request(f"{url}{sep}{q}"), timeout=4).read()
-            elif typ == "feishu":
-                data = json.dumps({"msg_type": "text",
-                                   "content": {"text": f"{title}\n{body}"}}).encode()
-                req = _u.Request(url, data=data,
-                                 headers={"Content-Type": "application/json"})
-                _u.urlopen(req, timeout=4).read()
-            else:   # 通用 JSON webhook（Discord/Slack 中继、自建服务）
-                data = json.dumps({"event": "duel", "title": title,
-                                   "body": body}, ensure_ascii=False).encode()
-                req = _u.Request(url, data=data,
-                                 headers={"Content-Type": "application/json"})
-                _u.urlopen(req, timeout=4).read()
+            if typ == "email":
+                _send_mail(cfg["to"], title, body)
+            else:
+                url = cfg.get("url")
+                if not url:
+                    return
+                if typ == "bark":
+                    q = urllib.parse.urlencode({"title": title, "body": body,
+                                                "group": "arena"})
+                    sep = "&" if "?" in url else "?"
+                    urllib.request.urlopen(
+                        urllib.request.Request(f"{url}{sep}{q}"), timeout=4).read()
+                elif typ == "feishu":
+                    data = json.dumps({"msg_type": "text",
+                                       "content": {"text": f"{title}\n{body}"}}).encode()
+                    req = urllib.request.Request(url, data=data,
+                                                 headers={"Content-Type": "application/json"})
+                    urllib.request.urlopen(req, timeout=4).read()
+                else:   # 通用 JSON webhook（Discord/Slack 中继、自建服务）
+                    data = json.dumps({"event": "duel", "title": title,
+                                       "body": body}, ensure_ascii=False).encode()
+                    req = urllib.request.Request(url, data=data,
+                                                 headers={"Content-Type": "application/json"})
+                    urllib.request.urlopen(req, timeout=4).read()
             print(f"[notify] ✅ 已推送 → {player['name']} ({typ})", flush=True)
         except Exception as ex:  # noqa: BLE001
             print(f"[notify] ⚠️ 推送失败 {player['name']}: {ex}", flush=True)
@@ -534,18 +573,27 @@ def _notify(player, title, body):
 
 @app.post("/api/players/me/notify")
 def api_set_notify(body: dict, authorization: str = Header(None)):
-    """注册/清除我的通知通道：{url, type: json|bark|feishu}；url 为空则清除。"""
+    """注册/清除我的通知通道：{type: email, to} 或 {url, type: json|bark|feishu}；空则清除。"""
     p = _auth_bearer(authorization)
-    url = (body.get("url") or "").strip()
     typ = body.get("type", "json")
-    if url and typ not in ("json", "bark", "feishu"):
-        raise HTTPException(400, "type 只能是 json/bark/feishu")
     players = load_players()
     me = next(x for x in players if x["id"] == p["id"])
-    if url:
-        me["notify"] = {"url": url, "type": typ}
+    if typ == "email":
+        to = (body.get("to") or "").strip()
+        if to and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", to):
+            raise HTTPException(400, f"邮箱格式无效: {to}")
+        if to:
+            me["notify"] = {"type": "email", "to": to}
+        else:
+            me.pop("notify", None)
     else:
-        me.pop("notify", None)
+        url = (body.get("url") or "").strip()
+        if url and typ not in ("json", "bark", "feishu"):
+            raise HTTPException(400, "type 只能是 email/json/bark/feishu")
+        if url:
+            me["notify"] = {"url": url, "type": typ}
+        else:
+            me.pop("notify", None)
     save_players(players)
     return {"player": p["name"], "notify": me.get("notify")}
 

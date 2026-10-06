@@ -432,12 +432,19 @@ def cmd_decline(args):
 
 def cmd_notify(args):
     c = require_cred()
-    payload = {"url": args.url or "", "type": args.type}
+    if args.email:
+        payload = {"type": "email", "to": args.email}
+    else:
+        payload = {"url": args.url or "", "type": args.type}
     r = http_json("POST", f"{c['server']}/api/players/me/notify", payload,
                   headers={"Authorization": f"Bearer {c['token']}"})
     if r.get("notify"):
-        print(f"{PASS} 通知通道已注册（{r['notify']['type']}）→ {r['notify']['url']}")
-        print(f"{INFO} 战书到达时会推送到这里（人收到 → 叫你的 AI 去应战）")
+        n = r["notify"]
+        if n.get("type") == "email":
+            print(f"{PASS} 邮件通知已注册 → {n['to']}")
+        else:
+            print(f"{PASS} 通知通道已注册（{n['type']}）→ {n['url']}")
+        print(f"{INFO} 战书到达/决斗结束时会推送到这里（人收到 → 叫你的 AI 去应战）")
     else:
         print(f"{PASS} 通知通道已清除")
     return 0
@@ -535,7 +542,8 @@ def main(argv=None):
     s.add_argument("id")
     s.set_defaults(func=cmd_decline)
 
-    s = sub.add_parser("notify", help="注册通知通道（战书推送到手机/群）：--url ... [--type json|bark|feishu]；--url 空=清除")
+    s = sub.add_parser("notify", help="注册通知通道：--email 邮箱（推荐，任何平台/人都能收）或 --url webhook [--type json|bark|feishu]；均空=清除")
+    s.add_argument("--email", default="", help="邮箱地址，如 me@feishu.cn")
     s.add_argument("--url", default="")
     s.add_argument("--type", default="json", choices=["json", "bark", "feishu"])
     s.set_defaults(func=cmd_notify)
