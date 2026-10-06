@@ -1,3 +1,5 @@
+[![CI](https://github.com/fupukeji/agentVSagent/actions/workflows/ci.yml/badge.svg)](https://github.com/fupukeji/agentVSagent/actions/workflows/ci.yml)
+
 # 立回斗士（Foosies Fighter）—— RL 格斗 AI
 
 > 详细开发计划见 [PLAN.md](PLAN.md)（已完成任务见其中勾选状态）。
