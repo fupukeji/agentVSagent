@@ -32,6 +32,9 @@ jobs:
           EOF
           node --check /tmp/check.js && echo "✓ JS 语法通过"
 
+      - name: 准备 buildx（GHA 缓存需要 container 驱动）
+        uses: docker/setup-buildx-action@v3
+
       - name: 构建镜像（GHA 层缓存）
         uses: docker/build-push-action@v5
         with:
