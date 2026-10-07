@@ -30,7 +30,7 @@ AGENT_FILE = os.path.join(ROOT, "my_agent.py")
 TEMPLATE = os.path.join(ROOT, "templates", "agent_template.py")
 INSTRUCTIONS = os.path.join(ROOT, "AGENT_INSTRUCTIONS.md")
 CRED_FILE = os.path.join(ROOT, ".arena-credentials")
-DEFAULT_SERVER = os.environ.get("ARENA_SERVER", "http://localhost:8000")
+DEFAULT_SERVER = os.environ.get("ARENA_SERVER", "https://ava.tuiyanka.com")
 
 PASS, FAIL, INFO = "✓", "✗", "·"
 

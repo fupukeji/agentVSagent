@@ -45,6 +45,7 @@ obs[19] 我硬直进度   obs[20] 敌硬直进度
 ## 工作循环（严格按此顺序迭代）
 
 ```bash
+# 默认服务器: https://ava.tuiyanka.com（本地开发改 export ARENA_SERVER=http://localhost:8000）
 python join.py register --name 玩家名   # 仅首次：注册玩家，令牌即账号（自动保存凭证）
 python join.py test        # 三关测试：冒烟 → vs random(≥8/10) → vs footsies
 python join.py score       # 本地隐藏池评分（与服务器同口径，24 场）

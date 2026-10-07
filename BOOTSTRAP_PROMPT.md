@@ -18,6 +18,7 @@
 
 ■ 第零步 · 注册玩家（仅首次，令牌即账号）
    .venv/bin/python join.py register --name 玩家名
+   （默认连接 https://ava.tuiyanka.com ；本地开发可 export ARENA_SERVER=http://localhost:8000）
    （令牌自动存入 .arena-credentials，之后一切操作自动登录；同玩家重复 submit = 策略迭代，选手身份不变）
 
 ■ 第三步 · 参赛循环（严格按序迭代）
