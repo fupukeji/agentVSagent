@@ -9,7 +9,7 @@
 自测：python hidden_bots.py  → 每个 Bot vs random 20 场，胜率应 > 60%。
 """
 
-from fighting_env import FootsiesBot
+from fighting_env import FootsiesBot, A_BACK, A_FWD, A_LIGHT, A_HEAVY, A_BLOCK, A_THROW, A_JUMP, A_CROUCH, A_CROUCH_BLOCK, A_LOW, S_RECOVERY, S_STARTUP, S_BLOCKSTUN
 
 # 风格化变体（顺序即 bot_index，用于种子派生）
 HIDDEN_POOL = {
@@ -79,17 +79,17 @@ HIDDEN_POOL_2D = {
         mixup=None, read_stance=True,
         desc="高低择：读对方防守姿态选段位"),
     "airdodge": dict(
-        punish=0.4, want_dist=0.15,
-        mixup={"throw": 0.08, "light": 0.30, "heavy": 0.08, "block": 0.20, "back": 0.10},
-        jump_rate=0.25, desc="闪空流：跳跃躲投/低，空中反击"),
+        punish=0.7, want_dist=0.14,
+        mixup={"throw": 0.10, "light": 0.35, "heavy": 0.10, "block": 0.25, "back": 0.05},
+        jump_rate=0.15, desc="闪空流：跳跃躲投/低，地面扎实"),
     "groundtech": dict(
         punish=0.85, want_dist=0.15,
         mixup={"throw": 0.08, "light": 0.35, "heavy": 0.15, "block": 0.20, "back": 0.10},
         jump_rate=0.08, desc="地面技术流：扎实1D+精准2D插入"),
     "chaos2d": dict(
-        punish=0.3, want_dist=0.14,
-        mixup={"throw": 0.15, "light": 0.15, "heavy": 0.25, "block": 0.10, "back": 0.10},
-        jump_rate=0.20, crouch_rate=0.15, low_rate=0.20,
+        punish=0.5, want_dist=0.14,
+        mixup={"throw": 0.12, "light": 0.25, "heavy": 0.20, "block": 0.20, "back": 0.08},
+        jump_rate=0.15, crouch_rate=0.10, low_rate=0.15,
         desc="混沌2D：乱跳乱蹲打下段，不可预测"),
 }
 

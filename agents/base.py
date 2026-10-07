@@ -64,25 +64,43 @@ class RandomAgent(BaseAgent):
 
 
 class _ObsFighter:
-    """从观测重建的轻量角色视图（只含脚本 Bot 需要的字段）。
+    """从观测重建的轻量角色视图（含 2D 蹲伏/空中字段）。"""
 
-    坐标是「本方视角」的镜像坐标；FootsiesBot 只用 abs 距离，故不受影响。
-    """
-
-    def __init__(self, x, state, blocking):
+    def __init__(self, x, state, blocking, crouching=False, airborne=False, y=0.0):
         self.x = x
         self.state = state
         self.blocking = blocking
+        self.crouching = crouching
+        self.y = y
         self.move = None
 
     def busy(self):
         return self.state in _BUSY_STATES
 
+    def airborne(self):
+        return self._air_flag or self.y > 0.005
+
+    _air_flag = False
+
 
 def fighters_from_obs(obs: np.ndarray):
-    """21 维观测 → (me, opp) 轻量角色视图。"""
-    me = _ObsFighter(float(obs[3]), int(np.argmax(obs[5:11])), bool(obs[17] > 0.5))
-    opp = _ObsFighter(float(obs[4]), int(np.argmax(obs[11:17])), bool(obs[18] > 0.5))
+    """29 维观测 → (me, opp) 轻量角色视图。自动兼容 21 维旧观测。"""
+    dim = len(obs)
+    me_cr = bool(obs[23] > 0.5) if dim > 23 else False
+    opp_cr = bool(obs[24] > 0.5) if dim > 24 else False
+    me_air = bool(obs[25] > 0.5) if dim > 25 else False
+    opp_air = bool(obs[26] > 0.5) if dim > 26 else False
+    me_y = float(obs[21]) if dim > 21 else 0.0
+    opp_y = float(obs[22]) if dim > 22 else 0.0
+
+    me = _ObsFighter(float(obs[3]), int(np.argmax(obs[5:11])),
+                     bool(obs[17] > 0.5), crouching=me_cr,
+                     airborne=me_air, y=me_y)
+    me._air_flag = me_air
+    opp = _ObsFighter(float(obs[4]), int(np.argmax(obs[11:17])),
+                      bool(obs[18] > 0.5), crouching=opp_cr,
+                      airborne=opp_air, y=opp_y)
+    opp._air_flag = opp_air
     return me, opp
 
 
