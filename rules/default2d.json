@@ -1,0 +1,33 @@
+{
+  "name": "default2d",
+  "version": 2,
+  "walk": {"forward": 0.009, "back": 0.007},
+  "chip": 0.15,
+  "min_gap": 0.05,
+  "push": {"hit": 0.03, "block": 0.018},
+  "max_hp": 100,
+  "max_ticks": 900,
+  "jump": {"frames": 20, "height": 0.06, "fwd": 0.005, "back": 0.003},
+  "moves": [
+    {"slot": 0, "name": "后撤", "kind": "move", "dir": "back"},
+    {"slot": 1, "name": "前进", "kind": "move", "dir": "forward"},
+    {"slot": 2, "name": "轻击", "kind": "strike", "height": "high",
+     "startup": 3, "active": 2, "recovery": 5,
+     "reach": 0.13, "damage": 7, "hitstun": 9, "blockstun": 4},
+    {"slot": 3, "name": "重击", "kind": "strike", "height": "high",
+     "startup": 8, "active": 3, "recovery": 14,
+     "reach": 0.19, "damage": 18, "hitstun": 15, "blockstun": 4},
+    {"slot": 4, "name": "站防", "kind": "guard", "height": "high"},
+    {"slot": 5, "name": "投技", "kind": "throw", "height": "mid",
+     "startup": 5, "active": 2, "recovery": 10,
+     "reach": 0.07, "damage": 14, "hitstun": 18, "blockstun": 0},
+    {"slot": 6, "name": "跳跃", "kind": "jump", "height": "air",
+     "startup": 10, "active": 8, "recovery": 4,
+     "reach": 0.10, "damage": 10, "hitstun": 12, "blockstun": 6},
+    {"slot": 7, "name": "蹲伏", "kind": "crouch"},
+    {"slot": 8, "name": "下段", "kind": "strike", "height": "low",
+     "startup": 4, "active": 2, "recovery": 6,
+     "reach": 0.15, "damage": 5, "hitstun": 6, "blockstun": 3},
+    {"slot": 9, "name": "蹲防", "kind": "crouch_guard", "height": "low"}
+  ]
+}
