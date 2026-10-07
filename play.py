@@ -203,14 +203,13 @@ def _eyes(surf, f, hx, hy, facing, t, skin):
                          (bx + 2, ey - 6), (bx + 9, ey - 8), 2)
 
 
-def draw_fighter(screen, font, f, facing, t=0):
-    """卡通角色绘制（姿态由状态驱动；行走/呼吸/眨眼由帧计数驱动）。"""
+def draw_fighter(screen, font, f, facing, t=0, y_off=0, crouch=False):
+    """卡通角色绘制（2D：y_off=跳跃高度，crouch=蹲伏）。"""
     import math
     pal = HERO if facing > 0 else ROBOT
     is_hero = facing > 0
     px = to_px(f.x)
 
-    # --- 行走检测（上一帧位置比对）→ 迈步相位与重心偏移 ---
     dx = 0.0
     if getattr(f, "_last_t", None) == t - 1:
         dx = f.x - getattr(f, "_last_x", f.x)
@@ -218,16 +217,28 @@ def draw_fighter(screen, font, f, facing, t=0):
     if not hasattr(f, "_walk"):
         f._walk = 0.0
     f._walk += dx * 900
-    lean = max(-1, min(1, dx * 120)) * facing   # 前进前倾/后撤后仰
+    lean = max(-1, min(1, dx * 120)) * facing
 
     ko = f.hp <= 0
     bob = 2 * math.sin(t * 0.15) if f.state == S_IDLE and not ko else 0
-    hx0 = px + (10 * -facing if ko else 0)      # 倒地时头往后倒
-    hy0 = STAGE_Y - 30                          # 腰部锚点
 
-    # --- 地面阴影 ---
+    # 2D：跳跃偏移 + 蹲伏压缩
+    jy = int(y_off * 600)  # 游戏Y→像素
+    cy = 22 if crouch else 0  # 蹲伏下压
+
+    hx0 = px + (10 * -facing if ko else 0)
+    hy0 = STAGE_Y - 30
+
+    # 跳跃轨迹尾迹
+    if jy > 3:
+        s = pygame.Surface((80, 60), pygame.SRCALPHA)
+        pygame.draw.arc(s, (255, 210, 100, 60), (10, 10, 60, 40), math.pi * 0.2, math.pi * 0.8, 3)
+        screen.blit(s, (px - 40, STAGE_Y - jy - 60))
+
+    # 地面阴影
+    shadow_w = 20 if crouch else 26
     pygame.draw.ellipse(screen, (10, 10, 16),
-                        (px - 26, STAGE_Y - 6, 52, 10))
+                        (px - shadow_w, STAGE_Y - 6, shadow_w * 2, 10))
 
     if ko:                                       # K.O. 倒地姿态
         body_y = STAGE_Y - 12
@@ -399,9 +410,9 @@ def draw(screen, env, font, big, result, tps, paused):
     t = big.render(f"{sec:.1f}s", True, GOLD)
     screen.blit(t, (W // 2 - t.get_width() // 2, 36))
 
-    # 角色
-    draw_fighter(screen, font, p, +1, t=env.t)
-    draw_fighter(screen, font, e, -1, t=env.t)
+    # 角色（含 2D Y 轴/蹲伏）
+    draw_fighter(screen, font, p, +1, t=env.t, y_off=getattr(p, 'y', 0), crouch=getattr(p, 'crouching', False))
+    draw_fighter(screen, font, e, -1, t=env.t, y_off=getattr(e, 'y', 0), crouch=getattr(e, 'crouching', False))
 
     # 距离仪表（立回核心！）
     x0, x1, y = 220, W - 220, H - 90

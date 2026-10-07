@@ -421,22 +421,24 @@
   </section>
 
   <section>
-    <h2>✊✋✌️ 猜拳环 <span class="hint">格斗博弈的原子结构</span></h2>
+    <h2>✊✋✌️ 六元博弈环 <span class="hint">2D 时代：3 元素 → 6 元素</span></h2>
     <div class="rps">
-      <div class="node"><div class="em">👊</div><div class="nm">打击（轻/重击）</div>
-        <div class="beats">克 投技：对方出投时你先打到他</div>
-        <div class="weak">被 防御 挡住（只掉削减伤害）</div></div>
+      <div class="node"><div class="em">👊</div><div class="nm">高段攻击</div>
+        <div class="beats">克 跳跃（对空 18 伤）· 被蹲伏躲</div></div>
+      <div class="node"><div class="em">🦵</div><div class="nm">下段攻击</div>
+        <div class="beats">穿 站防 · 被蹲防挡</div></div>
       <div class="node"><div class="em">🤼</div><div class="nm">投技</div>
-        <div class="beats">克 防御：抓起来摔</div>
-        <div class="weak">被 打击 打断（启动慢、距离短）</div></div>
-      <div class="node"><div class="em">🛡</div><div class="nm">防御</div>
-        <div class="beats">克 打击：只吃 <span class="num" id="r-chip">–</span> 削减伤害</div>
-        <div class="weak">被 投技 破防；且不能移动</div></div>
+        <div class="beats">破 一切防御 · 打不到空中</div></div>
+      <div class="node"><div class="em">🛡️</div><div class="nm">站防</div>
+        <div class="beats">挡 高段+跳攻 · 漏低段+投</div></div>
+      <div class="node"><div class="em">⬇🛡</div><div class="nm">蹲防</div>
+        <div class="beats">挡 低+高段 · 漏投+跳攻</div></div>
+      <div class="node"><div class="em">🦘</div><div class="nm">跳跃</div>
+        <div class="beats">躲 投+低段 · 被重击对空</div></div>
     </div>
-    <div class="callout"><b>立回（Footsies）</b>：在三个射程圈（投
-      <span class="num" id="r-throw">–</span> / 轻 <span class="num" id="r-light">–</span> /
-      重 <span class="num" id="r-heavy">–</span>）之外的一切移动博弈。站在对方射程外、
-      自己射程内，引诱对方挥空，然后惩罚他的收招——这就是本游戏的全部灵魂。</div>
+    <div class="callout"><b>立回 + 高度控制</b>：
+      三个射程圈 + <b>地/空选择</b>。跳跃 20 帧全暴露但躲投躲低；蹲伏躲高段但被下段磨脚。
+      地面基本功仍是主体，2D 是高风险高回报的混合手段。</div>
   </section>
 
   <section>
@@ -528,7 +530,7 @@ python join.py submit --name 我的名字       <span class="c"># 上榜（自�
   </section>
 
   <section>
-    <h2>🔭 观测向量手册 <span class="hint">你能看到的一切（21 维，自己视角）</span></h2>
+    <h2>🔭 观测向量手册 <span class="hint">你能看到的一切（29 维，自己视角；前 21 维与 1D 兼容）</span></h2>
     <table><thead><tr><th>下标</th><th>含义</th><th>取值</th></tr></thead><tbody>
       <tr><td><code>obs[0]</code></td><td>我方 HP / 100</td><td>0 ~ 1</td></tr>
       <tr><td><code>obs[1]</code></td><td>敌方 HP / 100</td><td>0 ~ 1</td></tr>
@@ -538,6 +540,10 @@ python join.py submit --name 我的名字       <span class="c"># 上榜（自�
       <tr><td><code>obs[11:17]</code></td><td><b>敌方状态 one-hot</b></td><td>见下表</td></tr>
       <tr><td><code>obs[17] / [18]</code></td><td>我方 / 敌方 防御中</td><td>0 或 1</td></tr>
       <tr><td><code>obs[19] / [20]</code></td><td>我方 / 敌方 硬直剩余进度</td><td>0 ~ 1</td></tr>
+      <tr><td><code>obs[21] / [22]</code></td><td><b>我方 / 敌方 Y 位置</b>（0=地面，跳跃时>0）</td><td>0 ~ 0.06</td></tr>
+      <tr><td><code>obs[23] / [24]</code></td><td><b>我方 / 敌方 蹲伏中</b>（对空/高低择关键）</td><td>0 或 1</td></tr>
+      <tr><td><code>obs[25] / [26]</code></td><td><b>我方 / 敌方 空中</b>（obs[26]>0.5 → 对空时机！）</td><td>0 或 1</td></tr>
+      <tr><td><code>obs[27] / [28]</code></td><td>我方 / 敌方 跳跃帧计数</td><td>0 ~ 20</td></tr>
     </tbody></table>
     <table style="margin-top:10px"><thead><tr>
       <th>状态编码</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
@@ -545,7 +551,8 @@ python join.py submit --name 我的名字       <span class="c"># 上榜（自�
       <td><b>收招（硬直）</b></td><td>防御硬直</td><td>受击硬直</td></tr></tbody></table>
     <table style="margin-top:10px"><thead><tr>
       <th>动作</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
-    <tbody><tr><td>含义</td><td>后撤</td><td>前进</td><td>轻击</td><td>重击</td><td>防御</td><td>投技</td></tr></tbody></table>
+    <tbody><tr><td>含义</td><td>后撤</td><td>前进</td><td>轻击<br><small>高段</small></td><td>重击<br><small>高段·对空</small></td><td>站防<br><small>漏低+投</small></td><td>投技<br><small>打不到空中</small></td>
+      <td><b>跳跃</b><br><small>自动跳攻</small></td><td><b>蹲伏</b><br><small>躲高段</small></td><td><b>下段</b><br><small>穿站防</small></td><td><b>蹲防</b><br><small>漏投+跳</small></td></tr></tbody></table>
   </section>
 
   <section>

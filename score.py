@@ -24,7 +24,7 @@ import numpy as np
 from agents import load_agent
 from agents.script_agent import ScriptAgent
 from arena import play_one
-from hidden_bots import HIDDEN_POOL, PUBLIC_POOL, make_bot
+from hidden_bots import HIDDEN_POOL_2D, HIDDEN_POOL, PUBLIC_POOL, make_bot, make_bot_2d
 
 W_WIN, W_SPEED, W_STAB = 0.65, 0.20, 0.15
 BASE_SEED = 1000
@@ -32,7 +32,7 @@ BASE_SEED = 1000
 
 def evaluate(spec: str, pool: str = "hidden", games: int = 24):
     """对整个对手池评测一个 Agent，返回报告 dict。"""
-    pools = {"hidden": HIDDEN_POOL, "public": PUBLIC_POOL}
+    pools = {"hidden": HIDDEN_POOL_2D, "hidden1d": HIDDEN_POOL, "public": PUBLIC_POOL}
     if pool not in pools:
         raise ValueError(f"未知对手池: {pool}（可选: {sorted(pools)}）")
     bots = pools[pool]
@@ -48,7 +48,7 @@ def evaluate(spec: str, pool: str = "hidden", games: int = 24):
     wins = draws = 0
     total = 0
     for i, (code, cfg) in enumerate(bots.items()):
-        opp = ScriptAgent(make_bot(code), name=f"pool:{code}")
+        opp = ScriptAgent(make_bot_2d(code), name=f"pool:{code}")
         w = l = d = 0
         ticks = []
         for j in range(counts[i]):
