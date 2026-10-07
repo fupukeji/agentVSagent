@@ -11,8 +11,18 @@ from fighting_env import (
 )
 
 # 观测布局常量（与 FightingEnv._obs 一致）
-OBS_DIM = 21
+OBS_DIM = 29
 _BUSY_STATES = (S_STARTUP, S_ACTIVE, S_RECOVERY, S_BLOCKSTUN, S_HITSTUN)
+
+# 2D 扩展观测下标
+OBS_MY_Y = 21
+OBS_OP_Y = 22
+OBS_MY_CROUCH = 23
+OBS_OP_CROUCH = 24
+OBS_MY_AIR = 25
+OBS_OP_AIR = 26
+OBS_MY_JUMP_FRAME = 27
+OBS_OP_JUMP_FRAME = 28
 
 
 class BaseAgent:
