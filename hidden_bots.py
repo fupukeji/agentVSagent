@@ -57,7 +57,150 @@ PUBLIC_POOL = {
 }
 
 
-def make_bot(code: str, seed=None) -> FootsiesBot:
+# 2D 隐藏池（跳跃/蹲伏/高低段时代的 8 个新考官）
+HIDDEN_POOL_2D = {
+    "balanced2d": dict(
+        punish=0.8, want_dist=0.155, mixup=None,
+        desc="均衡立回2D版：地面扎实，偶尔防空"),
+    "jumper": dict(
+        punish=0.5, want_dist=0.12,
+        mixup={"throw": 0.10, "light": 0.20, "heavy": 0.10, "block": 0.15, "back": 0.05},
+        jump_rate=0.35, desc="跳入流：35%概率跳入，空中压制"),
+    "antiair": dict(
+        punish=0.9, want_dist=0.17,
+        mixup={"throw": 0.03, "light": 0.10, "heavy": 0.30, "block": 0.40, "back": 0.15},
+        jump_rate=0.0, crouch_rate=0.3, desc="对空流：等对方跳，重击对空"),
+    "lowrider": dict(
+        punish=0.6, want_dist=0.13,
+        mixup={"throw": 0.10, "light": 0.10, "heavy": 0.05, "block": 0.25, "back": 0.10},
+        jump_rate=0.05, crouch_rate=0.5, low_rate=0.35, desc="下段流：蹲着磨脚，专打站防"),
+    "highlow": dict(
+        punish=0.7, want_dist=0.14,
+        mixup=None, read_stance=True,
+        desc="高低择：读对方防守姿态选段位"),
+    "airdodge": dict(
+        punish=0.4, want_dist=0.15,
+        mixup={"throw": 0.08, "light": 0.30, "heavy": 0.08, "block": 0.20, "back": 0.10},
+        jump_rate=0.25, desc="闪空流：跳跃躲投/低，空中反击"),
+    "groundtech": dict(
+        punish=0.85, want_dist=0.15,
+        mixup={"throw": 0.08, "light": 0.35, "heavy": 0.15, "block": 0.20, "back": 0.10},
+        jump_rate=0.08, desc="地面技术流：扎实1D+精准2D插入"),
+    "chaos2d": dict(
+        punish=0.3, want_dist=0.14,
+        mixup={"throw": 0.15, "light": 0.15, "heavy": 0.25, "block": 0.10, "back": 0.10},
+        jump_rate=0.20, crouch_rate=0.15, low_rate=0.20,
+        desc="混沌2D：乱跳乱蹲打下段，不可预测"),
+}
+
+
+class FootsiesBot2D(FootsiesBot):
+    """2D 扩展立回 Bot：在 1D 基础上增加跳跃/蹲伏/下段/防空。"""
+
+    def __init__(self, punish=0.8, want_dist=0.155, mixup=None, seed=None,
+                 rules=None, band=0.035, jump_rate=0.0, crouch_rate=0.0,
+                 low_rate=0.0, read_stance=False):
+        super().__init__(punish, want_dist, mixup, seed, rules, band)
+        self.jump_rate = jump_rate
+        self.crouch_rate = crouch_rate
+        self.low_rate = low_rate
+        self.read_stance = read_stance
+
+    def act(self, opp, me):
+        import numpy as np
+        d = abs(me.x - opp.x)
+        rng = self.rng.random
+
+        if me.busy():
+            return A_BLOCK
+
+        # 对空（所有 2D Bot 都会）
+        if hasattr(opp, 'airborne') and opp.airborne():
+            if rng() < self.punish and d <= 0.19:
+                return A_HEAVY  # 对空重击
+            return A_BLOCK
+
+        # 读招（确反）
+        if rng() < self.punish:
+            if opp.state == S_RECOVERY and d <= 0.19:
+                return A_HEAVY
+            if opp.state == S_STARTUP and d <= 0.19:
+                return A_BLOCK
+            if (opp.blocking or opp.state == S_BLOCKSTUN) and d <= 0.07:
+                if hasattr(opp, 'crouching') and opp.crouching:
+                    return A_JUMP  # 蹲防漏跳攻
+                return A_THROW
+
+        # 高低择模式
+        if self.read_stance:
+            if d <= 0.13:
+                opp_crouch = hasattr(opp, 'crouching') and opp.crouching
+                opp_block = opp.blocking
+                r = rng()
+                if opp_crouch:
+                    return A_JUMP if r < 0.4 else A_THROW
+                elif opp_block:
+                    return A_LOW if r < 0.5 else A_THROW
+                else:
+                    if r < 0.3: return A_LIGHT
+                    elif r < 0.5: return A_LOW
+                    elif r < 0.65: return A_JUMP
+                    else: return A_BLOCK
+
+        # 跳跃决策
+        if self.jump_rate > 0 and rng() < self.jump_rate and d >= 0.10:
+            return A_JUMP
+
+        # 蹲伏/下段决策
+        if self.crouch_rate > 0 and rng() < self.crouch_rate:
+            if self.low_rate > 0 and rng() < self.low_rate and d <= 0.15:
+                return A_LOW  # 蹲着出下段
+            return A_CROUCH_BLOCK
+
+        # 下段直出
+        if self.low_rate > 0 and rng() < self.low_rate and d <= 0.13:
+            return A_LOW
+
+        # 立回（1D 基础）
+        if d > self.want_dist + self.band:
+            return A_FWD
+        if d < self.want_dist - self.band:
+            return A_BACK
+
+        # 打投择（1D 基础）
+        r = rng()
+        if self.mixup is None:
+            if d < 0.09 and r < 0.15:
+                return A_THROW
+            if r < 0.50: return A_LIGHT
+            if r < 0.62: return A_HEAVY
+            if r < 0.82: return A_BLOCK
+            return A_BACK
+        m = self._mix
+        if d <= 0.09 and r < m["throw"]:
+            return A_THROW
+        if r < m["throw"] + m["light"]: return A_LIGHT
+        if r < m["throw"] + m["light"] + m["heavy"]: return A_HEAVY
+        if r < m["throw"] + m["light"] + m["heavy"] + m["block"]: return A_BLOCK
+        return A_BACK
+
+
+def make_bot_2d(code, seed=None):
+    """创建 2D 池 Bot。"""
+    pools = {**HIDDEN_POOL_2D, **PUBLIC_POOL}
+    if code not in pools:
+        raise KeyError(f"未知 Bot 代号: {code}")
+    cfg = pools[code]
+    return FootsiesBot2D(
+        punish=cfg.get("punish", 0.8),
+        want_dist=cfg.get("want_dist", 0.155),
+        mixup=cfg.get("mixup"),
+        seed=seed,
+        band=cfg.get("band", 0.035),
+        jump_rate=cfg.get("jump_rate", 0),
+        crouch_rate=cfg.get("crouch_rate", 0),
+        low_rate=cfg.get("low_rate", 0),
+        read_stance=cfg.get("read_stance", False))
     pools = {**HIDDEN_POOL, **PUBLIC_POOL}
     if code not in pools:
         raise KeyError(f"未知 Bot 代号: {code}（可用: {sorted(pools)}）")
@@ -69,10 +212,8 @@ def make_bot(code: str, seed=None) -> FootsiesBot:
 
 def get_hidden_bot(code: str) -> FootsiesBot:
     """供 load_agent('hidden:<代号>') 使用；种子由评测时的 reset 派生。"""
-    return make_bot(code)
-
-
-def bot_index(code: str) -> int:
+def make_bot(code: str, seed=None) -> FootsiesBot:
+    """创建池内 Bot。"""
     """隐藏池内序号（种子派生用）。"""
     return list(HIDDEN_POOL).index(code)
 

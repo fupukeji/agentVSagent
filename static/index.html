@@ -1472,12 +1472,37 @@ function rpDraw() {
 
   const act = d.actions[i] || [0, 0];
   const skins = d.skins || [];
+  const y1 = f[8] || 0, y2 = f[9] || 0;
+  const cr1 = (f[10] || 0) > 0.5, cr2 = (f[11] || 0) > 0.5;
   for (const side of [0, 1]) {
     const fr = side ? [f[1], f[3], f[5], f[7]] : [f[0], f[2], f[4], f[6]];
     const dx = RP.prevX[side] === null ? 0 : fr[0] - RP.prevX[side];
     const heavy = side ? act[1] === 3 : act[0] === 3;
     const isThrow = side ? act[1] === 5 : act[0] === 5;
+    const yOff = Math.round((side ? y2 : y1) * 600);  // 游戏Y→像素偏移
+    const crouch = side ? cr2 : cr1;
+    // 跳跃弧线尾迹
+    if (yOff > 3) {
+      c.strokeStyle = 'rgba(255,210,100,.3)';
+      c.lineWidth = 3; c.setLineDash([6, 4]);
+      c.beginPath();
+      c.arc(TC.PX0 + (side ? f[1] : f[0]) * (TC.PX1 - TC.PX0), TC.SY - yOff * 0.5,
+            30 + yOff * 0.3, -Math.PI * 0.8, -Math.PI * 0.2);
+      c.stroke(); c.setLineDash([]);
+    }
+    c.save();
+    if (yOff > 0) c.translate(0, -yOff);      // 跳跃上升
+    if (crouch) c.translate(0, 22);              // 蹲伏下压
     drawFighter(c, side, fr, dx, t, heavy, isThrow, skins[side]);
+    c.restore();
+    // 蹲伏指示
+    if (crouch && yOff === 0) {
+      c.fillStyle = 'rgba(140,230,255,.5)';
+      c.font = '11px sans-serif';
+      c.textAlign = 'center';
+      c.fillText('▼蹲', TC.PX0 + (side ? f[1] : f[0]) * (TC.PX1 - TC.PX0), TC.SY + 14);
+      c.textAlign = 'left';
+    }
   }
   RP.prevX = [f[0], f[1]];
 

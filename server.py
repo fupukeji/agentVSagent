@@ -406,11 +406,15 @@ def api_replay_frames(name: str):
         frames.append([round(env.p1.x, 4), round(env.p2.x, 4),
                        int(env.p1.hp), int(env.p2.hp),
                        env.p1.state, env.p2.state,
-                       int(env.p1.blocking), int(env.p2.blocking)])
+                       int(env.p1.blocking), int(env.p2.blocking),
+                       round(env.p1.y, 4), round(env.p2.y, 4),
+                       int(env.p1.crouching), int(env.p2.crouching)])
     return {"players": data["players"], "seed": data["seed"],
             "max_ticks": data["max_ticks"], "outcome": data["outcome"],
             "actions": data["ticks"], "frames": frames,
-            "skins": [p.get("skin") for p in data["players"]]}
+            "skins": [p.get("skin") for p in data["players"]],
+            "frame_fields": ["x1", "x2", "hp1", "hp2", "s1", "s2",
+                             "b1", "b2", "y1", "y2", "c1", "c2"]}
 
 
 @app.post("/api/players/me/skin")

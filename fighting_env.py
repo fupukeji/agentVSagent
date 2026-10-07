@@ -128,7 +128,7 @@ BUILTIN_RULES = {
 }
 
 RULES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rules")
-DEFAULT_RULES_PATH = os.path.join(RULES_DIR, "default.json")
+DEFAULT_RULES_PATH = os.path.join(RULES_DIR, "default2d.json")
 
 
 class Rules:
